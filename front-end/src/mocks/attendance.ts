@@ -1,0 +1,1059 @@
+export interface PunchRecord {
+  time: string;
+  photo: string | null;
+}
+
+export interface AttendanceRecord {
+  id: string;
+  userId: string;
+  date: string;
+  punches: PunchRecord[];
+  status: 'on_time' | 'late' | 'early_leave' | 'absent';
+  ipAddress: string | null;
+}
+
+export function getCheckIn(record: AttendanceRecord): string | null {
+  // First punch is always check-in (index 0)
+  return record.punches.length > 0 ? record.punches[0].time : null;
+}
+
+export function getCheckOut(record: AttendanceRecord): string | null {
+  // For strict alternating: check-out only exists at odd indices (1, 3, 5...)
+  // So the last punch is check-out only when total count is even
+  if (record.punches.length === 0) return null;
+  const total = record.punches.length;
+  if (total % 2 === 0) {
+    // Even count → last punch (index total-1) is check-out
+    return record.punches[total - 1].time;
+  }
+  // Odd count → last punch is check-in, real check-out is second-to-last
+  return total >= 2 ? record.punches[total - 2].time : null;
+}
+
+export function getPunchCount(record: AttendanceRecord): number {
+  return record.punches.length;
+}
+
+export const attendanceStatusLabels: Record<string, string> = {
+  on_time: 'Đúng giờ',
+  late: 'Đi muộn',
+  early_leave: 'Về sớm',
+  absent: 'Vắng mặt',
+};
+
+export const mockAttendance: AttendanceRecord[] = [
+  // ========== NV001 – Nguyễn Văn An (Văn phòng) ==========
+  // Tháng 6/2026
+  {
+    id: 'ATT-0601',
+    userId: 'NV001',
+    date: '2026-06-18',
+    punches: [
+      { time: '07:55', photo: null },
+      { time: '12:01', photo: null },
+      { time: '13:02', photo: null },
+      { time: '17:05', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0602',
+    userId: 'NV001',
+    date: '2026-06-17',
+    punches: [
+      { time: '08:12', photo: null },
+      { time: '17:00', photo: null },
+    ],
+    status: 'late',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0603',
+    userId: 'NV001',
+    date: '2026-06-16',
+    punches: [
+      { time: '07:50', photo: null },
+      { time: '17:10', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0604',
+    userId: 'NV001',
+    date: '2026-06-15',
+    punches: [
+      { time: '07:58', photo: null },
+      { time: '12:05', photo: null },
+      { time: '13:10', photo: null },
+      { time: '16:45', photo: null },
+    ],
+    status: 'early_leave',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0605',
+    userId: 'NV001',
+    date: '2026-06-14',
+    punches: [],
+    status: 'absent',
+    ipAddress: null,
+  },
+  {
+    id: 'ATT-0606',
+    userId: 'NV001',
+    date: '2026-06-13',
+    punches: [
+      { time: '07:45', photo: null },
+      { time: '11:50', photo: null },
+      { time: '13:05', photo: null },
+      { time: '17:20', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0607',
+    userId: 'NV001',
+    date: '2026-06-12',
+    punches: [
+      { time: '07:52', photo: null },
+      { time: '17:00', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0608',
+    userId: 'NV001',
+    date: '2026-06-11',
+    punches: [
+      { time: '07:48', photo: null },
+      { time: '17:10', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0609',
+    userId: 'NV001',
+    date: '2026-06-10',
+    punches: [
+      { time: '08:20', photo: null },
+      { time: '17:05', photo: null },
+    ],
+    status: 'late',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0610',
+    userId: 'NV001',
+    date: '2026-06-09',
+    punches: [
+      { time: '07:52', photo: null },
+      { time: '11:55', photo: null },
+      { time: '13:00', photo: null },
+      { time: '17:00', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0611',
+    userId: 'NV001',
+    date: '2026-06-08',
+    punches: [],
+    status: 'absent',
+    ipAddress: null,
+  },
+  // Tháng 5/2026
+  {
+    id: 'ATT-0501',
+    userId: 'NV001',
+    date: '2026-05-30',
+    punches: [
+      { time: '07:55', photo: null },
+      { time: '17:10', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0502',
+    userId: 'NV001',
+    date: '2026-05-29',
+    punches: [
+      { time: '07:50', photo: null },
+      { time: '17:15', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0503',
+    userId: 'NV001',
+    date: '2026-05-28',
+    punches: [
+      { time: '08:05', photo: null },
+      { time: '17:00', photo: null },
+    ],
+    status: 'late',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0504',
+    userId: 'NV001',
+    date: '2026-05-27',
+    punches: [
+      { time: '07:58', photo: null },
+      { time: '16:50', photo: null },
+    ],
+    status: 'early_leave',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0505',
+    userId: 'NV001',
+    date: '2026-05-26',
+    punches: [
+      { time: '07:45', photo: null },
+      { time: '12:02', photo: null },
+      { time: '13:00', photo: null },
+      { time: '17:20', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0506',
+    userId: 'NV001',
+    date: '2026-05-23',
+    punches: [
+      { time: '07:52', photo: null },
+      { time: '17:00', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0507',
+    userId: 'NV001',
+    date: '2026-05-22',
+    punches: [
+      { time: '08:15', photo: null },
+      { time: '17:05', photo: null },
+    ],
+    status: 'late',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0508',
+    userId: 'NV001',
+    date: '2026-05-20',
+    punches: [
+      { time: '07:50', photo: null },
+      { time: '12:00', photo: null },
+      { time: '13:05', photo: null },
+      { time: '17:10', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0509',
+    userId: 'NV001',
+    date: '2026-05-19',
+    punches: [
+      { time: '07:55', photo: null },
+      { time: '16:45', photo: null },
+    ],
+    status: 'early_leave',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0510',
+    userId: 'NV001',
+    date: '2026-05-16',
+    punches: [
+      { time: '07:48', photo: null },
+      { time: '17:10', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0511',
+    userId: 'NV001',
+    date: '2026-05-15',
+    punches: [],
+    status: 'absent',
+    ipAddress: null,
+  },
+  {
+    id: 'ATT-0512',
+    userId: 'NV001',
+    date: '2026-05-13',
+    punches: [
+      { time: '07:53', photo: null },
+      { time: '17:05', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0513',
+    userId: 'NV001',
+    date: '2026-05-12',
+    punches: [
+      { time: '08:25', photo: null },
+      { time: '17:00', photo: null },
+    ],
+    status: 'late',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0514',
+    userId: 'NV001',
+    date: '2026-05-09',
+    punches: [
+      { time: '07:50', photo: null },
+      { time: '17:15', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0515',
+    userId: 'NV001',
+    date: '2026-05-08',
+    punches: [
+      { time: '07:56', photo: null },
+      { time: '17:00', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0516',
+    userId: 'NV001',
+    date: '2026-05-06',
+    punches: [
+      { time: '07:52', photo: null },
+      { time: '17:10', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0517',
+    userId: 'NV001',
+    date: '2026-05-05',
+    punches: [
+      { time: '08:18', photo: null },
+      { time: '17:00', photo: null },
+    ],
+    status: 'late',
+    ipAddress: '192.168.1.100',
+  },
+  // Tháng 4/2026
+  {
+    id: 'ATT-0401',
+    userId: 'NV001',
+    date: '2026-04-29',
+    punches: [
+      { time: '07:55', photo: null },
+      { time: '17:05', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0402',
+    userId: 'NV001',
+    date: '2026-04-28',
+    punches: [
+      { time: '07:50', photo: null },
+      { time: '12:03', photo: null },
+      { time: '13:00', photo: null },
+      { time: '17:15', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0403',
+    userId: 'NV001',
+    date: '2026-04-25',
+    punches: [
+      { time: '08:10', photo: null },
+      { time: '17:00', photo: null },
+    ],
+    status: 'late',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0404',
+    userId: 'NV001',
+    date: '2026-04-24',
+    punches: [
+      { time: '07:48', photo: null },
+      { time: '17:10', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0405',
+    userId: 'NV001',
+    date: '2026-04-22',
+    punches: [
+      { time: '07:52', photo: null },
+      { time: '16:50', photo: null },
+    ],
+    status: 'early_leave',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0406',
+    userId: 'NV001',
+    date: '2026-04-21',
+    punches: [
+      { time: '07:56', photo: null },
+      { time: '17:05', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0407',
+    userId: 'NV001',
+    date: '2026-04-18',
+    punches: [
+      { time: '07:50', photo: null },
+      { time: '17:10', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0408',
+    userId: 'NV001',
+    date: '2026-04-17',
+    punches: [],
+    status: 'absent',
+    ipAddress: null,
+  },
+  {
+    id: 'ATT-0409',
+    userId: 'NV001',
+    date: '2026-04-15',
+    punches: [
+      { time: '08:30', photo: null },
+      { time: '17:00', photo: null },
+    ],
+    status: 'late',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0410',
+    userId: 'NV001',
+    date: '2026-04-14',
+    punches: [
+      { time: '07:53', photo: null },
+      { time: '17:15', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0411',
+    userId: 'NV001',
+    date: '2026-04-11',
+    punches: [
+      { time: '07:50', photo: null },
+      { time: '17:05', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0412',
+    userId: 'NV001',
+    date: '2026-04-10',
+    punches: [
+      { time: '08:05', photo: null },
+      { time: '17:00', photo: null },
+    ],
+    status: 'late',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0413',
+    userId: 'NV001',
+    date: '2026-04-08',
+    punches: [
+      { time: '07:48', photo: null },
+      { time: '17:10', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0414',
+    userId: 'NV001',
+    date: '2026-04-07',
+    punches: [
+      { time: '07:55', photo: null },
+      { time: '17:00', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0415',
+    userId: 'NV001',
+    date: '2026-04-04',
+    punches: [
+      { time: '07:52', photo: null },
+      { time: '11:58', photo: null },
+      { time: '13:05', photo: null },
+      { time: '17:05', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0416',
+    userId: 'NV001',
+    date: '2026-04-03',
+    punches: [
+      { time: '08:20', photo: null },
+      { time: '16:55', photo: null },
+    ],
+    status: 'late',
+    ipAddress: '192.168.1.100',
+  },
+  {
+    id: 'ATT-0417',
+    userId: 'NV001',
+    date: '2026-04-01',
+    punches: [
+      { time: '07:50', photo: null },
+      { time: '12:01', photo: null },
+      { time: '12:58', photo: null },
+      { time: '17:15', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.1.100',
+  },
+
+  // ========== NV003 – Lê Văn Cường (Kho Vận) ==========
+  // Tháng 6/2026
+  {
+    id: 'ATT-0612',
+    userId: 'NV003',
+    date: '2026-06-18',
+    punches: [
+      { time: '07:50', photo: null },
+      { time: '11:35', photo: null },
+      { time: '13:05', photo: null },
+      { time: '17:00', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0613',
+    userId: 'NV003',
+    date: '2026-06-17',
+    punches: [
+      { time: '08:10', photo: null },
+      { time: '17:05', photo: null },
+    ],
+    status: 'late',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0614',
+    userId: 'NV003',
+    date: '2026-06-16',
+    punches: [
+      { time: '07:45', photo: null },
+      { time: '16:50', photo: null },
+    ],
+    status: 'early_leave',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0615',
+    userId: 'NV003',
+    date: '2026-06-15',
+    punches: [
+      { time: '07:52', photo: null },
+      { time: '17:10', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0616',
+    userId: 'NV003',
+    date: '2026-06-13',
+    punches: [
+      { time: '07:48', photo: null },
+      { time: '11:30', photo: null },
+      { time: '13:02', photo: null },
+      { time: '17:05', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0617',
+    userId: 'NV003',
+    date: '2026-06-12',
+    punches: [],
+    status: 'absent',
+    ipAddress: null,
+  },
+  {
+    id: 'ATT-0618',
+    userId: 'NV003',
+    date: '2026-06-10',
+    punches: [
+      { time: '07:55', photo: null },
+      { time: '11:28', photo: null },
+      { time: '13:10', photo: null },
+      { time: '17:00', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0619',
+    userId: 'NV003',
+    date: '2026-06-09',
+    punches: [
+      { time: '08:22', photo: null },
+      { time: '17:10', photo: null },
+    ],
+    status: 'late',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0620',
+    userId: 'NV003',
+    date: '2026-06-06',
+    punches: [
+      { time: '07:50', photo: null },
+      { time: '17:15', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0621',
+    userId: 'NV003',
+    date: '2026-06-05',
+    punches: [
+      { time: '07:55', photo: null },
+      { time: '16:45', photo: null },
+    ],
+    status: 'early_leave',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0622',
+    userId: 'NV003',
+    date: '2026-06-03',
+    punches: [
+      { time: '07:48', photo: null },
+      { time: '17:00', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0623',
+    userId: 'NV003',
+    date: '2026-06-02',
+    punches: [
+      { time: '08:30', photo: null },
+      { time: '17:05', photo: null },
+    ],
+    status: 'late',
+    ipAddress: '192.168.2.50',
+  },
+  // Tháng 5/2026
+  {
+    id: 'ATT-0518',
+    userId: 'NV003',
+    date: '2026-05-30',
+    punches: [
+      { time: '07:52', photo: null },
+      { time: '11:32', photo: null },
+      { time: '13:00', photo: null },
+      { time: '17:10', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0519',
+    userId: 'NV003',
+    date: '2026-05-29',
+    punches: [
+      { time: '07:50', photo: null },
+      { time: '17:05', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0520',
+    userId: 'NV003',
+    date: '2026-05-27',
+    punches: [
+      { time: '08:15', photo: null },
+      { time: '17:00', photo: null },
+    ],
+    status: 'late',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0521',
+    userId: 'NV003',
+    date: '2026-05-26',
+    punches: [
+      { time: '07:48', photo: null },
+      { time: '17:15', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0522',
+    userId: 'NV003',
+    date: '2026-05-23',
+    punches: [
+      { time: '07:53', photo: null },
+      { time: '11:29', photo: null },
+      { time: '13:05', photo: null },
+      { time: '16:50', photo: null },
+    ],
+    status: 'early_leave',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0523',
+    userId: 'NV003',
+    date: '2026-05-22',
+    punches: [
+      { time: '07:50', photo: null },
+      { time: '17:10', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0524',
+    userId: 'NV003',
+    date: '2026-05-20',
+    punches: [],
+    status: 'absent',
+    ipAddress: null,
+  },
+  {
+    id: 'ATT-0525',
+    userId: 'NV003',
+    date: '2026-05-19',
+    punches: [
+      { time: '07:55', photo: null },
+      { time: '17:00', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0526',
+    userId: 'NV003',
+    date: '2026-05-16',
+    punches: [
+      { time: '08:05', photo: null },
+      { time: '17:05', photo: null },
+    ],
+    status: 'late',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0527',
+    userId: 'NV003',
+    date: '2026-05-15',
+    punches: [
+      { time: '07:50', photo: null },
+      { time: '17:10', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0528',
+    userId: 'NV003',
+    date: '2026-05-13',
+    punches: [
+      { time: '07:48', photo: null },
+      { time: '11:33', photo: null },
+      { time: '13:08', photo: null },
+      { time: '17:00', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0529',
+    userId: 'NV003',
+    date: '2026-05-12',
+    punches: [
+      { time: '07:52', photo: null },
+      { time: '17:10', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0530',
+    userId: 'NV003',
+    date: '2026-05-09',
+    punches: [
+      { time: '08:20', photo: null },
+      { time: '16:55', photo: null },
+    ],
+    status: 'late',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0531',
+    userId: 'NV003',
+    date: '2026-05-08',
+    punches: [
+      { time: '07:50', photo: null },
+      { time: '17:05', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0532',
+    userId: 'NV003',
+    date: '2026-05-06',
+    punches: [
+      { time: '07:55', photo: null },
+      { time: '17:00', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0533',
+    userId: 'NV003',
+    date: '2026-05-05',
+    punches: [
+      { time: '07:48', photo: null },
+      { time: '16:40', photo: null },
+    ],
+    status: 'early_leave',
+    ipAddress: '192.168.2.50',
+  },
+  // Tháng 4/2026
+  {
+    id: 'ATT-0418',
+    userId: 'NV003',
+    date: '2026-04-29',
+    punches: [
+      { time: '07:50', photo: null },
+      { time: '17:10', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0419',
+    userId: 'NV003',
+    date: '2026-04-28',
+    punches: [
+      { time: '07:52', photo: null },
+      { time: '17:05', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0420',
+    userId: 'NV003',
+    date: '2026-04-25',
+    punches: [
+      { time: '08:12', photo: null },
+      { time: '17:00', photo: null },
+    ],
+    status: 'late',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0421',
+    userId: 'NV003',
+    date: '2026-04-24',
+    punches: [
+      { time: '07:48', photo: null },
+      { time: '17:15', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0422',
+    userId: 'NV003',
+    date: '2026-04-22',
+    punches: [
+      { time: '07:55', photo: null },
+      { time: '11:30', photo: null },
+      { time: '13:00', photo: null },
+      { time: '17:00', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0423',
+    userId: 'NV003',
+    date: '2026-04-21',
+    punches: [],
+    status: 'absent',
+    ipAddress: null,
+  },
+  {
+    id: 'ATT-0424',
+    userId: 'NV003',
+    date: '2026-04-18',
+    punches: [
+      { time: '07:50', photo: null },
+      { time: '17:05', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0425',
+    userId: 'NV003',
+    date: '2026-04-17',
+    punches: [
+      { time: '08:25', photo: null },
+      { time: '17:10', photo: null },
+    ],
+    status: 'late',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0426',
+    userId: 'NV003',
+    date: '2026-04-15',
+    punches: [
+      { time: '07:48', photo: null },
+      { time: '11:25', photo: null },
+      { time: '13:02', photo: null },
+      { time: '16:50', photo: null },
+    ],
+    status: 'early_leave',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0427',
+    userId: 'NV003',
+    date: '2026-04-14',
+    punches: [
+      { time: '07:53', photo: null },
+      { time: '17:00', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0428',
+    userId: 'NV003',
+    date: '2026-04-11',
+    punches: [
+      { time: '07:50', photo: null },
+      { time: '17:10', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0429',
+    userId: 'NV003',
+    date: '2026-04-10',
+    punches: [
+      { time: '08:05', photo: null },
+      { time: '17:00', photo: null },
+    ],
+    status: 'late',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0430',
+    userId: 'NV003',
+    date: '2026-04-08',
+    punches: [
+      { time: '07:48', photo: null },
+      { time: '17:15', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0431',
+    userId: 'NV003',
+    date: '2026-04-07',
+    punches: [
+      { time: '07:52', photo: null },
+      { time: '16:45', photo: null },
+    ],
+    status: 'early_leave',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0432',
+    userId: 'NV003',
+    date: '2026-04-04',
+    punches: [
+      { time: '07:50', photo: null },
+      { time: '11:28', photo: null },
+      { time: '13:05', photo: null },
+      { time: '17:05', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0433',
+    userId: 'NV003',
+    date: '2026-04-03',
+    punches: [
+      { time: '07:55', photo: null },
+      { time: '17:00', photo: null },
+    ],
+    status: 'on_time',
+    ipAddress: '192.168.2.50',
+  },
+  {
+    id: 'ATT-0434',
+    userId: 'NV003',
+    date: '2026-04-01',
+    punches: [
+      { time: '08:18', photo: null },
+      { time: '17:10', photo: null },
+    ],
+    status: 'late',
+    ipAddress: '192.168.2.50',
+  },
+];

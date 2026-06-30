@@ -1,0 +1,158 @@
+export interface Notification {
+  id: string;
+  type: 'announcement' | 'private';
+  title: string;
+  content: string;
+  senderName: string;
+  senderPosition: string;
+  senderAvatar: string;
+  recipientId: string | null;
+  date: string;
+  isRead: boolean;
+  priority: 'normal' | 'important' | 'urgent';
+}
+
+export const mockNotifications: Notification[] = [
+  {
+    id: 'notif-001',
+    type: 'announcement',
+    title: 'Thông báo lịch nghỉ lễ Quốc Khánh 2/9',
+    content: 'Toàn thể nhân viên sẽ được nghỉ lễ Quốc Khánh vào ngày 2/9/2026. Các bộ phận trực ca vui lòng đăng ký lịch trực với quản lý trước ngày 28/8. Cảm ơn mọi người.',
+    senderName: 'Trần Thị Bình',
+    senderPosition: 'Quản lý kinh doanh - Đại diện BGD',
+    senderAvatar: 'https://readdy.ai/api/search-image?query=Vietnamese%20professional%20woman%20portrait%20warm%20confident%20smile%20clean%20white%20background%20soft%20lighting%20headshot&width=80&height=80&seq=notif-sender-binh&orientation=squarish',
+    recipientId: null,
+    date: '2026-06-28T09:15:00',
+    isRead: false,
+    priority: 'important',
+  },
+  {
+    id: 'notif-002',
+    type: 'announcement',
+    title: 'Cập nhật quy định chấm công tháng 7/2026',
+    content: 'Kể từ ngày 1/7/2026, hệ thống chấm công sẽ áp dụng khung giờ linh hoạt mới. Nhân viên có thể check-in từ 7:30 đến 8:30 sáng. Check-out từ 16:30 đến 17:30. Vui lòng cập nhật lịch làm việc cá nhân trên hệ thống.',
+    senderName: 'Phạm Thị Dung',
+    senderPosition: 'Chuyên viên nhân sự',
+    senderAvatar: 'https://readdy.ai/api/search-image?query=Vietnamese%20professional%20woman%20portrait%20warm%20friendly%20smile%20clean%20white%20background%20soft%20lighting%20headshot&width=80&height=80&seq=notif-sender-dung&orientation=squarish',
+    recipientId: null,
+    date: '2026-06-27T14:30:00',
+    isRead: false,
+    priority: 'normal',
+  },
+  {
+    id: 'notif-003',
+    type: 'announcement',
+    title: 'Kế hoạch teambuilding quý 3 - Đăng ký tham gia',
+    content: 'Công ty tổ chức chuyến teambuilding tại Đà Lạt vào 2 ngày 15-16/8/2026. Anh chị em vui lòng đăng ký với trưởng bộ phận trước ngày 5/8 để ban tổ chức sắp xếp phương tiện và chỗ ở. Chi phí do công ty chi trả toàn bộ.',
+    senderName: 'Phạm Thị Dung',
+    senderPosition: 'Chuyên viên nhân sự - Ban tổ chức',
+    senderAvatar: 'https://readdy.ai/api/search-image?query=Vietnamese%20professional%20woman%20portrait%20warm%20friendly%20smile%20clean%20white%20background%20soft%20lighting%20headshot&width=80&height=80&seq=notif-sender-dung2&orientation=squarish',
+    recipientId: null,
+    date: '2026-06-25T10:00:00',
+    isRead: true,
+    priority: 'normal',
+  },
+  {
+    id: 'notif-004',
+    type: 'announcement',
+    title: 'Triển khai phần mềm quản lý mới - Lịch đào tạo',
+    content: 'Phòng IT sẽ tổ chức buổi đào tạo sử dụng phần mềm quản lý công việc mới vào ngày 5/7/2026. Chia làm 2 ca: Ca sáng 8:30-11:30 và ca chiều 13:30-16:30 tại phòng họp lớn tầng 3. Mỗi bộ phận cử 50% nhân sự tham gia mỗi ca để đảm bảo công việc không bị gián đoạn.',
+    senderName: 'Hoàng Văn Em',
+    senderPosition: 'Kế toán trưởng - Ban điều hành',
+    senderAvatar: 'https://readdy.ai/api/search-image?query=Vietnamese%20middle%20aged%20professional%20man%20portrait%20serious%20expression%20clean%20white%20background%20soft%20lighting%20headshot&width=80&height=80&seq=notif-sender-em&orientation=squarish',
+    recipientId: null,
+    date: '2026-06-22T16:00:00',
+    isRead: true,
+    priority: 'important',
+  },
+  {
+    id: 'notif-005',
+    type: 'announcement',
+    title: 'Thông báo bổ nhiệm nhân sự tháng 6',
+    content: 'Ban Giám đốc quyết định bổ nhiệm anh Lê Văn Cường giữ chức vụ Tổ trưởng kho vận kể từ ngày 1/7/2026. Chúc mừng anh Cường và mong anh tiếp tục phát huy năng lực trong vai trò mới.',
+    senderName: 'Trần Thị Bình',
+    senderPosition: 'Quản lý kinh doanh - Đại diện BGD',
+    senderAvatar: 'https://readdy.ai/api/search-image?query=Vietnamese%20professional%20woman%20portrait%20warm%20confident%20smile%20clean%20white%20background%20soft%20lighting%20headshot&width=80&height=80&seq=notif-sender-binh2&orientation=squarish',
+    recipientId: null,
+    date: '2026-06-20T08:00:00',
+    isRead: true,
+    priority: 'normal',
+  },
+  {
+    id: 'notif-006',
+    type: 'announcement',
+    title: 'Cảnh báo thời tiết - Làm việc từ xa ngày 12/6',
+    content: 'Do ảnh hưởng của bão số 2, khu vực TP.HCM dự kiến có mưa lớn và ngập cục bộ vào ngày 12/6/2026. Ban Giám đốc cho phép toàn thể nhân viên làm việc từ xa trong ngày này. Các bộ phận kho vận và giao hàng sẽ có thông báo riêng.',
+    senderName: 'Trần Thị Bình',
+    senderPosition: 'Quản lý kinh doanh - Đại diện BGD',
+    senderAvatar: 'https://readdy.ai/api/search-image?query=Vietnamese%20professional%20woman%20portrait%20warm%20confident%20smile%20clean%20white%20background%20soft%20lighting%20headshot&width=80&height=80&seq=notif-sender-binh3&orientation=squarish',
+    recipientId: null,
+    date: '2026-06-11T18:30:00',
+    isRead: true,
+    priority: 'urgent',
+  },
+  {
+    id: 'notif-007',
+    type: 'private',
+    title: '',
+    content: 'An ơi, mai em kiểm tra giúp chị báo cáo doanh số tháng 6 trước 10h sáng nha. Chị cần gửi lên BGD gấp. Cảm ơn em!',
+    senderName: 'Trần Thị Bình',
+    senderPosition: 'Quản lý kinh doanh',
+    senderAvatar: 'https://readdy.ai/api/search-image?query=Vietnamese%20professional%20woman%20portrait%20warm%20confident%20smile%20clean%20white%20background%20soft%20lighting%20headshot&width=80&height=80&seq=notif-sender-binh4&orientation=squarish',
+    recipientId: 'NV001',
+    date: '2026-06-29T16:45:00',
+    isRead: false,
+    priority: 'important',
+  },
+  {
+    id: 'notif-008',
+    type: 'private',
+    title: '',
+    content: 'Anh An ơi, bên em vừa nhập lô hàng mới về, anh qua kiểm tra chất lượng trước khi nhập kho chính thức giúp em với. Có vài thùng bị móp góc, em muốn anh xem trực tiếp.',
+    senderName: 'Ngô Thị Phương',
+    senderPosition: 'Phó kho',
+    senderAvatar: 'https://readdy.ai/api/search-image?query=Vietnamese%20professional%20woman%20portrait%20warm%20capable%20smile%20clean%20white%20background%20soft%20lighting%20headshot&width=80&height=80&seq=notif-sender-phuong&orientation=squarish',
+    recipientId: 'NV001',
+    date: '2026-06-29T14:20:00',
+    isRead: false,
+    priority: 'normal',
+  },
+  {
+    id: 'notif-009',
+    type: 'private',
+    title: '',
+    content: 'An ơi, phiếu tăng ca của em hôm 25/6 chị đã duyệt rồi nha. Lần sau nhớ ghi rõ lý do cụ thể hơn giúp chị. Cuối tháng bên HR kiểm tra gắt lắm đó.',
+    senderName: 'Trần Thị Bình',
+    senderPosition: 'Quản lý kinh doanh',
+    senderAvatar: 'https://readdy.ai/api/search-image?query=Vietnamese%20professional%20woman%20portrait%20warm%20confident%20smile%20clean%20white%20background%20soft%20lighting%20headshot&width=80&height=80&seq=notif-sender-binh5&orientation=squarish',
+    recipientId: 'NV001',
+    date: '2026-06-26T09:00:00',
+    isRead: true,
+    priority: 'normal',
+  },
+  {
+    id: 'notif-010',
+    type: 'private',
+    title: '',
+    content: 'Nguyễn Văn An ơi, phòng Nhân sự thông báo bạn còn 12 ngày phép năm 2026 chưa sử dụng. Bạn nên lên kế hoạch nghỉ phép sớm để tránh dồn vào cuối năm nhé. Nếu cần tư vấn lịch nghỉ thì liên hệ chị Dung bên HR nha.',
+    senderName: 'Phạm Thị Dung',
+    senderPosition: 'Chuyên viên nhân sự',
+    senderAvatar: 'https://readdy.ai/api/search-image?query=Vietnamese%20professional%20woman%20portrait%20warm%20friendly%20smile%20clean%20white%20background%20soft%20lighting%20headshot&width=80&height=80&seq=notif-sender-dung3&orientation=squarish',
+    recipientId: 'NV001',
+    date: '2026-06-24T11:00:00',
+    isRead: true,
+    priority: 'normal',
+  },
+];
+
+export const priorityLabels: Record<Notification['priority'], string> = {
+  normal: 'Thường',
+  important: 'Quan trọng',
+  urgent: 'Khẩn',
+};
+
+export const priorityColors: Record<Notification['priority'], string> = {
+  normal: 'bg-background-100 text-foreground-600',
+  important: 'bg-secondary-100 text-secondary-700',
+  urgent: 'bg-primary-100 text-primary-700',
+};
