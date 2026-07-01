@@ -18,9 +18,24 @@ class User extends Authenticatable
      * @var array<int, string>
      */
     protected $fillable = [
+        'employee_code',
         'name',
         'email',
         'password',
+        'phone',
+        'department',
+        'position',
+        'role',
+        'working_status',
+        'employee_type',
+        'gender',
+        'annual_leave',
+        'join_date',
+        'official_working_date',
+        'probation_salary',
+        'current_salary',
+        'allowance',
+        'petrol_allowance',
     ];
 
     /**
@@ -41,5 +56,12 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'annual_leave' => 'integer',
+        'join_date' => 'date:Y-m-d',
+        'official_working_date' => 'date:Y-m-d',
+        'probation_salary' => 'decimal:2',
+        'current_salary' => 'decimal:2',
+        'allowance' => 'decimal:2',
+        'petrol_allowance' => 'decimal:2',
     ];
 }

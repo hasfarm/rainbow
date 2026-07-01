@@ -4,6 +4,7 @@ import LoginPage from "../pages/login/page";
 import DashboardPage from "../pages/dashboard/page";
 import AttendancePage from "../pages/attendance/page";
 import AttendanceHistoryPage from "../pages/attendance/history/page";
+import EmployeesPage from "../pages/employees/page";
 import ProfilePage from "../pages/profile/page";
 import RequestsPage from "../pages/requests/page";
 import RequestsNewPage from "../pages/requests/new/page";
@@ -57,6 +58,10 @@ const routes: RouteObject[] = [
       {
         path: "profile",
         element: <ProfilePage />,
+      },
+      {
+        path: "employees",
+        element: <EmployeesPage />,
       },
       {
         path: "requests",

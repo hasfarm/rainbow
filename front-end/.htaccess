@@ -1,0 +1,10 @@
+RewriteEngine On
+
+# Open built app from /front-end/
+RewriteRule ^$ /front-end/out/ [R=302,L]
+
+# SPA fallback for routes under /front-end/out/
+RewriteCond %{REQUEST_URI} ^/front-end/out/
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^out/ out/index.html [L]

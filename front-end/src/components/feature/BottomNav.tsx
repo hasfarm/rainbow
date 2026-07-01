@@ -25,7 +25,7 @@ const navItems = [
 
 export function BottomNav() {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background-50 border-t border-background-200/70">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background-50 border-t border-background-200/70 md:hidden">
       <div className="mobile-container">
         <div className="flex items-center justify-around h-16 px-2">
           {navItems.map((item) => (

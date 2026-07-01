@@ -1,176 +1,236 @@
 import { AuthContext } from '@/hooks/useAuth';
-import { mockAttendance, getCheckIn, getCheckOut, type AttendanceRecord } from '@/mocks/attendance';
-import { mockOvertimes } from '@/mocks/overtimes';
+import { mockAttendance } from '@/mocks/attendance';
 import { mockLeaves } from '@/mocks/leaves';
-import { mockTimeOffs } from '@/mocks/timeoff';
 import { mockNotifications } from '@/mocks/notifications';
-import { format } from 'date-fns';
+import { mockOvertimes } from '@/mocks/overtimes';
+import { AdminSidebar } from '@/components/feature/AdminSidebar';
 import { useContext } from 'react';
 import { Link } from 'react-router-dom';
-
-const quickLinks = [
-  { to: '/attendance', icon: 'ri-fingerprint-line', label: 'Chấm công', color: 'bg-primary-500' },
-  { to: '/leave', icon: 'ri-calendar-check-line', label: 'Nghỉ phép', color: 'bg-accent-500' },
-  { to: '/overtime', icon: 'ri-time-line', label: 'Tăng ca', color: 'bg-secondary-500' },
-  { to: '/timeoff', icon: 'ri-run-line', label: 'Đi trễ / VS', color: 'bg-foreground-700' },
-  { to: '/payslip', icon: 'ri-bank-card-line', label: 'Phiếu lương', color: 'bg-accent-600' },
-];
 
 export default function DashboardPage() {
   const { user } = useContext(AuthContext);
 
-  const todayStr = format(new Date(), 'yyyy-MM-dd');
-  const userAttendance = mockAttendance.filter((a) => a.userId === user?.id);
-  const todayRecord = userAttendance.find((a) => a.date === todayStr);
+  const totalEmployees = 26;
+  const userAttendance = mockAttendance.filter((item) => item.userId === user?.id);
+  const totalPresents = userAttendance.filter((item) => item.status === 'on_time').length;
+  const totalAbsents = userAttendance.filter((item) => item.status === 'absent').length;
+  const totalLeave = mockLeaves.filter((item) => item.userId === user?.id).length;
+  const recentLeaves = mockLeaves.slice(0, 4);
+  const notifyCount = mockNotifications.filter((item) => !item.isRead).length;
+  const overtimeHours = mockOvertimes.reduce((sum, item) => sum + item.hours, 0);
 
-  const pendingLeaves = mockLeaves.filter((l) => l.userId === user?.id && l.status === 'pending').length;
-  const pendingOvertimes = mockOvertimes.filter((o) => o.userId === user?.id && o.status === 'pending').length;
-  const pendingTimeOffs = mockTimeOffs.filter((t) => t.userId === user?.id && t.status === 'pending').length;
-  const pendingRequests = pendingLeaves + pendingOvertimes + pendingTimeOffs;
-  const unreadNotifications = mockNotifications.filter(
-    (n) => (n.type === 'announcement') || (n.type === 'private' && n.recipientId === user?.id),
-  ).filter((n) => !n.isRead).length;
-  const remainingLeave = user?.annualLeave ?? 0;
-
-  const getStatusInfo = (record: AttendanceRecord | undefined) => {
-    if (!record || record.status === 'absent') {
-      return {
-        label: 'Chưa chấm công',
-        icon: 'ri-alert-line',
-        color: 'text-foreground-400',
-        bg: 'bg-foreground-100',
-      };
-    }
-    if (record.status === 'on_time') {
-      return {
-        label: 'Đã chấm công',
-        icon: 'ri-check-double-line',
-        color: 'text-accent-600',
-        bg: 'bg-accent-100',
-      };
-    }
-    if (record.status === 'late') {
-      return {
-        label: 'Đi muộn',
-        icon: 'ri-alert-line',
-        color: 'text-secondary-600',
-        bg: 'bg-secondary-100',
-      };
-    }
-    return {
-      label: 'Về sớm',
-      icon: 'ri-time-line',
-      color: 'text-primary-600',
-      bg: 'bg-primary-100',
-    };
-  };
-
-  const statusInfo = getStatusInfo(todayRecord);
-  const checkInTime = todayRecord ? getCheckIn(todayRecord) : null;
-  const checkOutTime = todayRecord ? getCheckOut(todayRecord) : null;
-  const punchCount = todayRecord ? todayRecord.punches.length : 0;
+  const attendanceBars = [68, 74, 66, 82, 79, 88, 72];
+  const absentBars = [32, 26, 34, 18, 21, 12, 28];
+  const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   return (
-    <div className="px-4 pt-6 pb-4">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-5">
-        <div>
-          <h1 className="text-lg font-heading font-bold text-foreground-950">
-            Xin chào, {user?.name?.split(' ').pop()}!
-          </h1>
-          <p className="text-xs text-foreground-500 mt-0.5">{user?.position}</p>
-        </div>
-        <Link to="/profile">
-          <div className="w-10 h-10 rounded-full overflow-hidden bg-primary-100 flex items-center justify-center cursor-pointer">
-            {user?.avatar ? (
-              <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
-            ) : (
-              <i className="ri-user-line text-lg text-primary-500"></i>
-            )}
-          </div>
-        </Link>
-      </div>
+    <div className="min-h-screen bg-background-100 p-3 md:p-6">
+      <div className="mx-auto max-w-[1320px] rounded-3xl border border-background-200 bg-background-50 shadow-[0_24px_60px_rgba(15,23,42,0.08)] overflow-hidden">
+        <div className="grid md:grid-cols-[240px_1fr] min-h-[760px]">
+          <AdminSidebar />
 
-      {/* Today's attendance status card */}
-      <Link to="/attendance" className="block mb-4">
-        <div className="bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl p-5 text-white relative overflow-hidden cursor-pointer">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/3 translate-x-1/3"></div>
-          <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full translate-y-1/3 -translate-x-1/4"></div>
-          <div className="relative z-10">
-            <p className="text-xs text-white/80 mb-1">Hôm nay - {format(new Date(), 'dd/MM/yyyy')}</p>
-            <div className="flex items-center gap-2 mb-3">
-              <span className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
-                <i className={`${statusInfo.icon} text-base`}></i>
-              </span>
-              <span className="text-base font-semibold">{statusInfo.label}</span>
-            </div>
-            {checkInTime && (
-              <div className="flex items-center gap-4 text-sm">
-                <div>
-                  <span className="text-white/70 text-xs">Check-in</span>
-                  <p className="font-semibold">{checkInTime}</p>
-                </div>
-                {checkOutTime && (
-                  <>
-                    <span className="text-white/30">→</span>
-                    <div>
-                      <span className="text-white/70 text-xs">Check-out</span>
-                      <p className="font-semibold">{checkOutTime}</p>
-                    </div>
-                  </>
-                )}
+          <section className="p-4 md:p-6 lg:p-7">
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+              <div className="relative w-full md:w-[360px]">
+                <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400"></i>
+                <input
+                  type="text"
+                  placeholder="Search your data"
+                  className="w-full rounded-xl border border-background-200 bg-background-50 py-2.5 pl-10 pr-4 text-sm outline-none focus:border-primary-300"
+                />
               </div>
-            )}
-            {punchCount > 0 && (
-              <p className="text-[11px] text-white/60 mt-2">{punchCount} lần chấm công hôm nay</p>
-            )}
-          </div>
-        </div>
-      </Link>
 
-      {/* Stats cards */}
-      <div className="grid grid-cols-2 gap-3 mb-5">
-        <div className="bg-background-50 border border-background-200/70 rounded-xl p-4">
-          <div className="w-9 h-9 bg-accent-100 rounded-lg flex items-center justify-center mb-2">
-            <i className="ri-calendar-check-line text-lg text-accent-600"></i>
-          </div>
-          <p className="text-2xl font-heading font-bold text-foreground-950">{remainingLeave}</p>
-          <p className="text-xs text-foreground-500">Ngày phép còn lại</p>
-        </div>
-        <div className="bg-background-50 border border-background-200/70 rounded-xl p-4">
-          <div className="w-9 h-9 bg-secondary-100 rounded-lg flex items-center justify-center mb-2">
-            <i className="ri-file-list-3-line text-lg text-secondary-600"></i>
-          </div>
-          <p className="text-2xl font-heading font-bold text-foreground-950">{pendingRequests}</p>
-          <p className="text-xs text-foreground-500">Đơn đang chờ duyệt</p>
-        </div>
-        <div className="bg-background-50 border border-background-200/70 rounded-xl p-4">
-          <div className="w-9 h-9 bg-primary-100 rounded-lg flex items-center justify-center mb-2">
-            <i className="ri-notification-3-line text-lg text-primary-500"></i>
-          </div>
-          <p className="text-2xl font-heading font-bold text-foreground-950">{unreadNotifications}</p>
-          <p className="text-xs text-foreground-500">Thông báo mới chưa đọc</p>
-        </div>
-      </div>
+              <div className="flex items-center gap-3">
+                <button className="h-10 w-10 rounded-xl border border-background-200 text-foreground-500 hover:bg-background-100">
+                  <i className="ri-notification-3-line"></i>
+                </button>
+                <Link to="/profile" className="flex items-center gap-2 rounded-xl border border-background-200 bg-background-50 px-3 py-1.5">
+                  <span className="h-9 w-9 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center overflow-hidden">
+                    {user?.avatar ? (
+                      <img src={user.avatar} alt={user.name} className="h-full w-full object-cover" />
+                    ) : (
+                      <i className="ri-user-line text-lg"></i>
+                    )}
+                  </span>
+                  <span>
+                    <span className="block text-sm font-semibold text-foreground-900">{user?.name ?? 'Staff User'}</span>
+                    <span className="block text-[11px] text-foreground-500">{user?.position ?? 'HR'}</span>
+                  </span>
+                </Link>
+              </div>
+            </div>
 
-      {/* Quick actions */}
-      <div>
-        <h2 className="text-sm font-heading font-semibold text-foreground-950 mb-3">Thao tác nhanh</h2>
-        <div className="grid grid-cols-5 gap-2">
-          {quickLinks.map((link) => (
-            <Link
-              key={link.to}
-              to={link.to}
-              className="flex flex-col items-center gap-1.5 p-3 bg-background-50 border border-background-200/70 rounded-xl hover:border-primary-300 transition-colors duration-200 cursor-pointer"
-            >
-              <span className={`w-10 h-10 ${link.color} rounded-xl flex items-center justify-center`}>
-                <i className={`${link.icon} text-lg text-white`}></i>
-              </span>
-              <span className="text-[11px] font-medium text-foreground-600 text-center whitespace-nowrap">{link.label}</span>
-            </Link>
-          ))}
+            <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr] mb-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <StatCard title="Total Employee" value={totalEmployees} trend="+15%" icon="ri-team-line" accent="primary" />
+                <StatCard title="Total Presents" value={totalPresents} trend="+6%" icon="ri-user-smile-line" accent="accent" />
+                <StatCard title="Total Absents" value={totalAbsents} trend="-3%" icon="ri-user-unfollow-line" accent="secondary" />
+                <StatCard title="Total Leave" value={totalLeave} trend="+2%" icon="ri-calendar-check-line" accent="foreground" />
+              </div>
+
+              <div className="rounded-2xl border border-background-200 bg-background-50 p-4">
+                <div className="mb-2 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-foreground-900">Daily attendance statistic</h3>
+                  <p className="text-xs text-foreground-400">This week</p>
+                </div>
+                <div className="grid grid-cols-7 gap-2 items-end h-[170px] mt-3">
+                  {weekDays.map((day, idx) => (
+                    <div key={day} className="flex flex-col items-center gap-2">
+                      <div className="w-6 rounded-full bg-background-100 p-1 flex flex-col justify-end h-[130px] gap-1">
+                        <span className="rounded-full bg-primary-500" style={{ height: `${attendanceBars[idx]}%` }}></span>
+                        <span className="rounded-full bg-accent-400" style={{ height: `${absentBars[idx]}%` }}></span>
+                      </div>
+                      <span className="text-[10px] text-foreground-500">{day}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-3 mb-4">
+              <div className="rounded-2xl border border-background-200 bg-background-50 p-4 xl:col-span-1">
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-foreground-900">Recruitment</h3>
+                  <span className="text-xs text-foreground-500">Yearly</span>
+                </div>
+                <div className="space-y-3 text-xs text-foreground-500">
+                  <ProgressRow label="IT Student" value={82} color="bg-primary-500" />
+                  <ProgressRow label="Software" value={66} color="bg-accent-500" />
+                  <ProgressRow label="Data Analyst" value={91} color="bg-secondary-500" />
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-background-200 bg-background-50 p-4 xl:col-span-1">
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-foreground-900">Overtime Summary</h3>
+                  <span className="text-xs text-red-400">-31%</span>
+                </div>
+                <div className="h-[124px] w-[124px] mx-auto rounded-full border-[12px] border-accent-200 border-t-primary-500 border-r-secondary-400 flex items-center justify-center">
+                  <div className="text-center">
+                    <p className="text-xl font-bold text-primary-600">{overtimeHours.toFixed(1)}h</p>
+                    <p className="text-[11px] text-foreground-500">Total overtime</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-background-200 bg-background-50 p-4 xl:col-span-1">
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-foreground-900">Leave Application</h3>
+                  <span className="text-xs text-foreground-500">See all</span>
+                </div>
+                <div className="space-y-2.5">
+                  {recentLeaves.map((item) => (
+                    <div key={item.id} className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-foreground-900">{item.type}</p>
+                        <p className="text-xs text-foreground-500">{item.reason}</p>
+                      </div>
+                      <StatusChip status={item.status} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-background-200 bg-background-50 p-4">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold text-foreground-900">Employee list</h3>
+                <button className="rounded-xl bg-primary-500 text-white px-3.5 py-2 text-sm font-medium hover:bg-primary-600 transition-colors">
+                  Add new employee
+                </button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[680px] text-sm">
+                  <thead>
+                    <tr className="text-left text-foreground-500 border-b border-background-200">
+                      <th className="pb-2 font-medium">Name</th>
+                      <th className="pb-2 font-medium">Id</th>
+                      <th className="pb-2 font-medium">Email</th>
+                      <th className="pb-2 font-medium">Department</th>
+                      <th className="pb-2 font-medium">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...(userAttendance.slice(0, 5))].map((item, idx) => (
+                      <tr key={item.id} className="border-b border-background-100 last:border-0">
+                        <td className="py-2.5 text-foreground-900">{user?.name ?? `Employee ${idx + 1}`}</td>
+                        <td className="py-2.5 text-foreground-500">#{item.id}</td>
+                        <td className="py-2.5 text-foreground-500">{user?.email ?? 'staff@rainbow.test'}</td>
+                        <td className="py-2.5 text-foreground-500">{user?.department ?? 'Operations'}</td>
+                        <td className="py-2.5">
+                          <span className="rounded-full bg-accent-100 px-2.5 py-1 text-[11px] font-semibold text-accent-700">Active</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-3 text-xs text-foreground-500">{notifyCount} thông báo chưa đọc cần xử lý hôm nay.</p>
+            </div>
+          </section>
         </div>
       </div>
     </div>
   );
+}
+
+function StatCard({
+  title,
+  value,
+  trend,
+  icon,
+  accent,
+}: {
+  title: string;
+  value: number;
+  trend: string;
+  icon: string;
+  accent: 'primary' | 'accent' | 'secondary' | 'foreground';
+}) {
+  const accentStyles = {
+    primary: 'bg-primary-500 text-white',
+    accent: 'bg-accent-500 text-white',
+    secondary: 'bg-secondary-500 text-white',
+    foreground: 'bg-foreground-800 text-white',
+  };
+
+  return (
+    <div className="rounded-2xl border border-background-200 bg-background-50 p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <p className="text-xs text-foreground-500">{title}</p>
+        <span className={`h-8 w-8 rounded-xl flex items-center justify-center ${accentStyles[accent]}`}>
+          <i className={icon}></i>
+        </span>
+      </div>
+      <p className="text-2xl font-bold text-foreground-900">{value}</p>
+      <p className="mt-1 text-[11px] text-foreground-400">{trend} since last week</p>
+    </div>
+  );
+}
+
+function ProgressRow({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div>
+      <div className="mb-1.5 flex justify-between">
+        <span>{label}</span>
+        <span>{value}%</span>
+      </div>
+      <div className="h-2 rounded-full bg-background-100">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${value}%` }}></div>
+      </div>
+    </div>
+  );
+}
+
+function StatusChip({ status }: { status: 'approved' | 'rejected' | 'pending' }) {
+  if (status === 'approved') {
+    return <span className="rounded-full bg-accent-100 px-2 py-1 text-[11px] font-semibold text-accent-700">Approved</span>;
+  }
+
+  if (status === 'rejected') {
+    return <span className="rounded-full bg-red-100 px-2 py-1 text-[11px] font-semibold text-red-600">Rejected</span>;
+  }
+
+  return <span className="rounded-full bg-secondary-100 px-2 py-1 text-[11px] font-semibold text-secondary-700">Pending</span>;
 }
