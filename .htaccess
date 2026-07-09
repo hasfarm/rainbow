@@ -1,0 +1,10 @@
+RewriteEngine On
+
+# Serve real files/folders as-is.
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# App aliases at root.
+RewriteRule ^$ /front-end/out/ [R=302,L]
+RewriteRule ^(home|login|profile|requests|office|overtime|leave|timeoff|payslip|timeline|crm)$ /front-end/out/$1 [R=302,L]

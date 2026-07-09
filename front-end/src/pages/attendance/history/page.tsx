@@ -1,11 +1,26 @@
-import { useState, useMemo, useContext } from 'react';
+import { useState, useMemo, useContext, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '@/hooks/useAuth';
-import { mockAttendance, attendanceStatusLabels, getCheckIn, getCheckOut, type AttendanceRecord } from '@/mocks/attendance';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, isToday, isWeekend, addMonths, subMonths, getYear, getMonth, getDate } from 'date-fns';
 import { vi } from 'date-fns/locale';
 
 type ViewMode = 'day' | 'month' | 'year';
+
+type PunchRecord = {
+  sequence: number;
+  time: string;
+  photo: string | null;
+};
+
+type AttendanceRecord = {
+  id: string;
+  userId: string;
+  date: string;
+  punches: PunchRecord[];
+  status: 'on_time' | 'late' | 'early_leave' | 'absent';
+  statusLabel: string;
+  ipAddress: string | null;
+};
 
 const WEEKDAYS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
 
@@ -15,6 +30,38 @@ const statusColors: Record<string, { dot: string; bg: string; text: string }> = 
   early_leave: { dot: 'bg-primary-400', bg: 'bg-primary-100', text: 'text-primary-700' },
   absent: { dot: 'bg-red-400', bg: 'bg-red-50', text: 'text-red-600' },
 };
+
+const fallbackStatusLabel: Record<AttendanceRecord['status'], string> = {
+  on_time: 'Đúng giờ',
+  late: 'Đi muộn',
+  early_leave: 'Về sớm',
+  absent: 'Vắng mặt',
+};
+
+function toDisplayTime(time: string): string {
+  return time.length >= 5 ? time.slice(0, 5) : time;
+}
+
+function getCheckIn(record: AttendanceRecord): string | null {
+  return record.punches.length > 0 ? toDisplayTime(record.punches[0].time) : null;
+}
+
+function getCheckOut(record: AttendanceRecord): string | null {
+  if (record.punches.length === 0) return null;
+  const total = record.punches.length;
+  if (total % 2 === 0) {
+    return toDisplayTime(record.punches[total - 1].time);
+  }
+  return total >= 2 ? toDisplayTime(record.punches[total - 2].time) : null;
+}
+
+function getAuthHeaders(): HeadersInit {
+  const token = localStorage.getItem('hrm_auth_token');
+  return {
+    Accept: 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
 
 function getPunchLabel(index: number, _total: number): { label: string; icon: string; isIn: boolean } {
   // Strict alternating: index 0 = check-in, 1 = check-out, 2 = check-in, 3 = check-out...
@@ -40,11 +87,53 @@ export default function AttendanceHistoryPage() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [currentYear, setCurrentYear] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const userAttendance = useMemo(
-    () => mockAttendance.filter((a) => a.userId === user?.id),
-    [user?.id]
-  );
+  const loadAttendanceHistory = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError(null);
+
+    try {
+      const response = await fetch(`/back-end/public/api/attendance?_=${Date.now()}`, {
+        method: 'GET',
+        headers: getAuthHeaders(),
+        cache: 'no-store',
+      });
+
+      if (!response.ok) {
+        throw new Error(`Request failed with status ${response.status}`);
+      }
+
+      const payload = (await response.json()) as { data?: AttendanceRecord[] };
+      const records = Array.isArray(payload.data) ? payload.data : [];
+      setAttendanceRecords(records);
+
+      if (records.length > 0) {
+        setSelectedDay((prev) => prev ?? new Date(records[0].date));
+      }
+    } catch {
+      setLoadError('Không thể tải lịch sử chấm công. Vui lòng thử lại.');
+      setAttendanceRecords([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadAttendanceHistory();
+  }, [loadAttendanceHistory]);
+
+  const userAttendance = useMemo(() => attendanceRecords, [attendanceRecords]);
+
+  const statusLabelByCode = useMemo(() => {
+    const map: Partial<Record<AttendanceRecord['status'], string>> = {};
+    userAttendance.forEach((record) => {
+      map[record.status] = record.statusLabel;
+    });
+    return map;
+  }, [userAttendance]);
 
   const attendanceByDate = useMemo(() => {
     const map: Record<string, AttendanceRecord> = {};
@@ -88,6 +177,32 @@ export default function AttendanceHistoryPage() {
       return { month, total: monthRecords.length, onTime, late, earlyLeave, absent };
     });
   }, [currentYear, userAttendance]);
+
+  const monthSummary = useMemo(() => {
+    const year = getYear(currentMonth);
+    const month = getMonth(currentMonth);
+    const monthRecords = userAttendance.filter((a) => {
+      const d = new Date(a.date);
+      return getYear(d) === year && getMonth(d) === month;
+    });
+
+    return {
+      total: monthRecords.length,
+      onTime: monthRecords.filter((r) => r.status === 'on_time').length,
+      late: monthRecords.filter((r) => r.status === 'late').length,
+      earlyLeave: monthRecords.filter((r) => r.status === 'early_leave').length,
+      absent: monthRecords.filter((r) => r.status === 'absent').length,
+    };
+  }, [currentMonth, userAttendance]);
+
+  const yearTotals = useMemo(() => {
+    return {
+      onTime: yearSummaries.reduce((s, m) => s + m.onTime, 0),
+      late: yearSummaries.reduce((s, m) => s + m.late, 0),
+      earlyLeave: yearSummaries.reduce((s, m) => s + m.earlyLeave, 0),
+      absent: yearSummaries.reduce((s, m) => s + m.absent, 0),
+    };
+  }, [yearSummaries]);
 
   const goToMonth = (monthIndex: number) => {
     setCurrentMonth(new Date(getYear(currentYear), monthIndex, 1));
@@ -148,6 +263,27 @@ export default function AttendanceHistoryPage() {
             </button>
           </div>
 
+          <div className="grid grid-cols-4 gap-2 mb-4">
+            <div className="p-3 bg-accent-100 rounded-xl text-center">
+              <p className="text-2xl font-heading font-bold text-accent-700">{monthSummary.onTime}</p>
+              <p className="text-[11px] text-accent-600 mt-0.5 whitespace-nowrap">Đúng giờ</p>
+            </div>
+            <div className="p-3 bg-secondary-100 rounded-xl text-center">
+              <p className="text-2xl font-heading font-bold text-secondary-700">{monthSummary.late}</p>
+              <p className="text-[11px] text-secondary-600 mt-0.5 whitespace-nowrap">Đi muộn</p>
+            </div>
+            <div className="p-3 bg-primary-100 rounded-xl text-center">
+              <p className="text-2xl font-heading font-bold text-primary-700">{monthSummary.earlyLeave}</p>
+              <p className="text-[11px] text-primary-600 mt-0.5 whitespace-nowrap">Về sớm</p>
+            </div>
+            <div className="p-3 bg-red-50 rounded-xl text-center">
+              <p className="text-2xl font-heading font-bold text-red-500">{monthSummary.absent}</p>
+              <p className="text-[11px] text-red-400 mt-0.5 whitespace-nowrap">Vắng mặt</p>
+            </div>
+          </div>
+
+          <p className="text-xs text-foreground-500 mb-3">Tổng ngày công trong tháng: {monthSummary.total}</p>
+
           <div className="grid grid-cols-7 mb-2">
             {WEEKDAYS.map((day) => (
               <div key={day} className="text-center text-xs font-semibold text-foreground-400 py-1">
@@ -203,7 +339,7 @@ export default function AttendanceHistoryPage() {
             {Object.entries(statusColors).map(([key, colors]) => (
               <div key={key} className="flex items-center gap-1.5">
                 <span className={`w-2.5 h-2.5 rounded-full ${colors.dot}`}></span>
-                <span className="text-xs text-foreground-500">{attendanceStatusLabels[key]}</span>
+                <span className="text-xs text-foreground-500">{statusLabelByCode[key as AttendanceRecord['status']] ?? fallbackStatusLabel[key as AttendanceRecord['status']]}</span>
               </div>
             ))}
           </div>
@@ -264,8 +400,7 @@ export default function AttendanceHistoryPage() {
               {/* Status badge & summary */}
               <div className="flex items-center justify-between mb-4 p-3.5 bg-background-50 border border-background-200/70 rounded-xl">
                 <div>
-                  <p className="text-xs text-foreground-400">{dayRecord.id}</p>
-                  <p className="text-sm font-semibold text-foreground-950 mt-0.5">
+                  <p className="text-sm font-semibold text-foreground-950">
                     {dayRecord.punches.length} lần chấm công
                   </p>
                 </div>
@@ -275,7 +410,7 @@ export default function AttendanceHistoryPage() {
                   } ${statusColors[dayRecord.status]?.text}`}
                 >
                   <span className={`w-2 h-2 rounded-full ${statusColors[dayRecord.status]?.dot}`}></span>
-                  {attendanceStatusLabels[dayRecord.status]}
+                  {dayRecord.statusLabel || fallbackStatusLabel[dayRecord.status]}
                 </span>
               </div>
 
@@ -300,7 +435,7 @@ export default function AttendanceHistoryPage() {
                       </span>
                       <div className="flex-1 min-w-0 pt-1">
                         <div className="flex items-center gap-2 mb-0.5">
-                          <span className="text-sm font-semibold text-foreground-950">{punch.time}</span>
+                          <span className="text-sm font-semibold text-foreground-950">{toDisplayTime(punch.time)}</span>
                           <span
                             className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${
                               isIn ? 'bg-accent-100 text-accent-700' : 'bg-secondary-100 text-secondary-700'
@@ -374,28 +509,25 @@ export default function AttendanceHistoryPage() {
             </button>
           </div>
 
-          {(() => {
-            const totalOnTime = yearSummaries.reduce((s, m) => s + m.onTime, 0);
-            const totalLate = yearSummaries.reduce((s, m) => s + m.late, 0);
-            const totalEarlyLeave = yearSummaries.reduce((s, m) => s + m.earlyLeave, 0);
-            const totalAbsent = yearSummaries.reduce((s, m) => s + m.absent, 0);
+          <p className="text-xs text-foreground-500 mb-3">Tổng hợp năm {getYear(currentYear)}</p>
 
+          {(() => {
             return (
               <div className="grid grid-cols-4 gap-2 mb-5">
                 <div className="p-3 bg-accent-100 rounded-xl text-center">
-                  <p className="text-2xl font-heading font-bold text-accent-700">{totalOnTime}</p>
+                  <p className="text-2xl font-heading font-bold text-accent-700">{yearTotals.onTime}</p>
                   <p className="text-[11px] text-accent-600 mt-0.5 whitespace-nowrap">Đúng giờ</p>
                 </div>
                 <div className="p-3 bg-secondary-100 rounded-xl text-center">
-                  <p className="text-2xl font-heading font-bold text-secondary-700">{totalLate}</p>
+                  <p className="text-2xl font-heading font-bold text-secondary-700">{yearTotals.late}</p>
                   <p className="text-[11px] text-secondary-600 mt-0.5 whitespace-nowrap">Đi muộn</p>
                 </div>
                 <div className="p-3 bg-primary-100 rounded-xl text-center">
-                  <p className="text-2xl font-heading font-bold text-primary-700">{totalEarlyLeave}</p>
+                  <p className="text-2xl font-heading font-bold text-primary-700">{yearTotals.earlyLeave}</p>
                   <p className="text-[11px] text-primary-600 mt-0.5 whitespace-nowrap">Về sớm</p>
                 </div>
                 <div className="p-3 bg-red-50 rounded-xl text-center">
-                  <p className="text-2xl font-heading font-bold text-red-500">{totalAbsent}</p>
+                  <p className="text-2xl font-heading font-bold text-red-500">{yearTotals.absent}</p>
                   <p className="text-[11px] text-red-400 mt-0.5 whitespace-nowrap">Vắng mặt</p>
                 </div>
               </div>
@@ -448,6 +580,18 @@ export default function AttendanceHistoryPage() {
             })}
           </div>
         </>
+      )}
+
+      {isLoading && (
+        <div className="mt-4 p-4 rounded-xl border border-background-200 bg-background-50 text-center text-sm text-foreground-500">
+          Đang tải dữ liệu chấm công...
+        </div>
+      )}
+
+      {loadError && !isLoading && (
+        <div className="mt-4 p-4 rounded-xl border border-red-200 bg-red-50 text-sm text-red-600">
+          {loadError}
+        </div>
       )}
     </div>
   );

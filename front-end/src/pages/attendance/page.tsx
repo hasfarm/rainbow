@@ -1,6 +1,5 @@
-import { useState, useRef, useContext, useCallback, useMemo } from 'react';
+import { useState, useRef, useContext, useCallback, useEffect } from 'react';
 import { AuthContext } from '@/hooks/useAuth';
-import { mockAttendance, type PunchRecord, getCheckIn, getCheckOut } from '@/mocks/attendance';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 
@@ -9,32 +8,118 @@ interface GpsLocation {
   longitude: number;
 }
 
+interface PunchRecord {
+  sequence: number;
+  time: string;
+  photo: string | null;
+}
+
+interface AttendanceRecordApi {
+  id: string;
+  userId: string;
+  date: string;
+  punches: PunchRecord[];
+  status: 'on_time' | 'late' | 'early_leave' | 'absent';
+  statusLabel: string;
+  ipAddress: string | null;
+}
+
+function toDisplayTime(time: string): string {
+  return time.length >= 5 ? time.slice(0, 5) : time;
+}
+
+function getCheckIn(punches: PunchRecord[]): string | null {
+  return punches.length > 0 ? toDisplayTime(punches[0].time) : null;
+}
+
+function getCheckOut(punches: PunchRecord[]): string | null {
+  if (punches.length === 0) {
+    return null;
+  }
+
+  if (punches.length % 2 === 0) {
+    return toDisplayTime(punches[punches.length - 1].time);
+  }
+
+  return punches.length >= 2 ? toDisplayTime(punches[punches.length - 2].time) : null;
+}
+
+function getAuthHeaders(withJson = false): HeadersInit {
+  const token = localStorage.getItem('hrm_auth_token');
+
+  return {
+    Accept: 'application/json',
+    ...(withJson ? { 'Content-Type': 'application/json' } : {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
 export default function AttendancePage() {
   const { user } = useContext(AuthContext);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
   const todayStr = format(new Date(), 'yyyy-MM-dd');
-  const currentTime = format(new Date(), 'HH:mm:ss');
-  const currentDateFormatted = format(new Date(), 'EEEE, dd/MM/yyyy');
+  const [currentTime, setCurrentTime] = useState(format(new Date(), 'HH:mm:ss'));
+  const [currentDateFormatted, setCurrentDateFormatted] = useState(format(new Date(), 'EEEE, dd/MM/yyyy'));
 
-  const userAttendance = mockAttendance.filter((a) => a.userId === user?.id);
-  const todayRecord = userAttendance.find((a) => a.date === todayStr);
+  const [todayRecord, setTodayRecord] = useState<AttendanceRecordApi | null>(null);
+  const [todayPunches, setTodayPunches] = useState<PunchRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const [todayPunches, setTodayPunches] = useState<PunchRecord[]>(todayRecord?.punches || []);
   const [gpsLocation, setGpsLocation] = useState<GpsLocation | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [latestPhoto, setLatestPhoto] = useState<string | null>(null);
 
-  const checkInTime = getCheckIn({ ...todayRecord, punches: todayPunches } as typeof todayRecord);
-  const checkOutTime = getCheckOut({ ...todayRecord, punches: todayPunches } as typeof todayRecord);
+  const checkInTime = getCheckIn(todayPunches);
+  const checkOutTime = getCheckOut(todayPunches);
 
   const showToast = (type: 'success' | 'error', message: string) => {
     setToast({ type, message });
     setTimeout(() => setToast(null), 3000);
   };
+
+  const loadTodayAttendance = useCallback(async () => {
+    if (!localStorage.getItem('hrm_auth_token')) {
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const response = await fetch('/back-end/public/api/attendance/today', {
+        method: 'GET',
+        headers: getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Request failed with status ${response.status}`);
+      }
+
+      const payload = (await response.json()) as { data: AttendanceRecordApi | null };
+      setTodayRecord(payload.data);
+      setTodayPunches(payload.data?.punches ?? []);
+    } catch {
+      showToast('error', 'Không thể tải dữ liệu chấm công hôm nay');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadTodayAttendance();
+  }, [loadTodayAttendance]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const now = new Date();
+      setCurrentTime(format(now, 'HH:mm:ss'));
+      setCurrentDateFormatted(format(now, 'EEEE, dd/MM/yyyy'));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
 
   const getGpsLocation = useCallback((): Promise<GpsLocation> => {
     return new Promise((resolve, reject) => {
@@ -79,7 +164,7 @@ export default function AttendancePage() {
     }, 200);
   }, [getGpsLocation]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) {
       setIsCapturing(false);
@@ -87,40 +172,57 @@ export default function AttendancePage() {
     }
 
     const reader = new FileReader();
-    reader.onload = (ev) => {
+    reader.onload = async (ev) => {
       const photoData = ev.target?.result as string;
-      const now = format(new Date(), 'HH:mm');
-      const hour = new Date().getHours();
-      const minute = new Date().getMinutes();
 
-      const newPunch: PunchRecord = { time: now, photo: photoData };
-      const updatedPunches = [...todayPunches, newPunch];
-      setTodayPunches(updatedPunches);
-      setLatestPhoto(photoData);
+      try {
+        const response = await fetch('/back-end/public/api/attendance/punches', {
+          method: 'POST',
+          headers: getAuthHeaders(true),
+          body: JSON.stringify({
+            photo: photoData,
+            gps_latitude: gpsLocation?.latitude ?? null,
+            gps_longitude: gpsLocation?.longitude ?? null,
+          }),
+        });
 
-      const isFirstPunch = todayPunches.length === 0;
+        const payload = (await response.json()) as { message?: string; data?: AttendanceRecordApi };
 
-      if (isFirstPunch) {
-        const isLate = hour > 8 || (hour === 8 && minute > 0);
-        if (!isLate) {
-          showToast('success', `Check-in lúc ${now}. Chúc bạn một ngày làm việc hiệu quả!`);
-        } else {
-          showToast('error', `Check-in lúc ${now}. Bạn đã đi muộn!`);
+        if (!response.ok || !payload.data) {
+          throw new Error(payload.message ?? 'Không thể lưu chấm công');
         }
-      } else {
-        const newIndex = updatedPunches.length - 1;
-        const label = newIndex % 2 === 0 ? 'Check-in' : 'Check-out';
-        showToast('success', `${label} lúc ${now}`);
-      }
 
-      setIsCapturing(false);
+        const updatedRecord = payload.data;
+        const updatedPunches = updatedRecord.punches ?? [];
+
+        setTodayRecord(updatedRecord);
+        setTodayPunches(updatedPunches);
+        setLatestPhoto(photoData);
+
+        const nowDisplay = toDisplayTime(updatedPunches[updatedPunches.length - 1].time);
+        const isFirstPunch = updatedPunches.length === 1;
+
+        if (isFirstPunch && updatedRecord.status === 'late') {
+          showToast('error', `Check-in lúc ${nowDisplay}. Bạn đã đi muộn!`);
+        } else if (isFirstPunch) {
+          showToast('success', `Check-in lúc ${nowDisplay}. Chúc bạn một ngày làm việc hiệu quả!`);
+        } else {
+          const label = updatedPunches.length % 2 === 0 ? 'Check-out' : 'Check-in';
+          showToast('success', `${label} lúc ${nowDisplay}`);
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Không thể chấm công';
+        showToast('error', message);
+      } finally {
+        setIsCapturing(false);
+      }
     };
+
     reader.readAsDataURL(file);
     e.target.value = '';
   };
 
-  const getPunchLabel = (index: number, _total: number): { label: string; icon: string; isIn: boolean } => {
-    // Strict alternating: index 0 = check-in, 1 = check-out, 2 = check-in, 3 = check-out...
+  const getPunchLabel = (index: number): { label: string; icon: string; isIn: boolean } => {
     return index % 2 === 0
       ? { label: 'Check-in', icon: 'ri-login-box-line', isIn: true }
       : { label: 'Check-out', icon: 'ri-logout-box-line', isIn: false };
@@ -132,7 +234,6 @@ export default function AttendancePage() {
 
   return (
     <div className="px-4 pt-6 pb-4">
-      {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="text-lg font-heading font-bold text-foreground-950">Chấm công</h1>
@@ -151,7 +252,6 @@ export default function AttendancePage() {
         </button>
       </div>
 
-      {/* Current time display */}
       <div className="bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl p-6 text-white text-center mb-5 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-36 h-36 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/4"></div>
         <div className="absolute bottom-0 left-0 w-28 h-28 bg-white/10 rounded-full translate-y-1/3 -translate-x-1/4"></div>
@@ -177,11 +277,10 @@ export default function AttendancePage() {
         </div>
       </div>
 
-      {/* Single punch button */}
       <div className="mb-5">
         <button
           onClick={triggerPunch}
-          disabled={isCapturing}
+          disabled={isCapturing || isLoading}
           className="w-full py-4 rounded-2xl font-semibold text-base transition-all duration-200 flex items-center justify-center gap-3 cursor-pointer whitespace-nowrap bg-accent-500 text-white hover:bg-accent-600 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {isCapturing ? (
@@ -207,7 +306,6 @@ export default function AttendancePage() {
         </p>
       </div>
 
-      {/* Capturing overlay */}
       {isCapturing && (
         <div className="mb-5 p-5 bg-primary-50 border-2 border-primary-300 border-dashed rounded-2xl text-center">
           <span className="w-14 h-14 mx-auto flex items-center justify-center mb-3">
@@ -224,7 +322,6 @@ export default function AttendancePage() {
         </div>
       )}
 
-      {/* Today's punch timeline */}
       {todayPunches.length > 0 && (
         <div className="mb-5">
           <h2 className="text-sm font-heading font-semibold text-foreground-950 mb-3">
@@ -232,14 +329,12 @@ export default function AttendancePage() {
           </h2>
           <div className="space-y-0">
             {todayPunches.map((punch, idx) => {
-              const { label, icon, isIn } = getPunchLabel(idx, todayPunches.length);
+              const { label, icon, isIn } = getPunchLabel(idx);
               return (
-                <div key={idx} className="relative flex items-start gap-3 pb-3">
-                  {/* Timeline line */}
+                <div key={punch.sequence} className="relative flex items-start gap-3 pb-3">
                   {idx < todayPunches.length - 1 && (
                     <div className="absolute left-[17px] top-9 w-0.5 h-[calc(100%_-_8px)] bg-background-200/70"></div>
                   )}
-                  {/* Dot */}
                   <span
                     className={`relative z-10 w-[34px] h-[34px] rounded-full flex items-center justify-center shrink-0 ${
                       isIn ? 'bg-accent-100' : 'bg-secondary-100'
@@ -247,10 +342,9 @@ export default function AttendancePage() {
                   >
                     <i className={`${icon} ${isIn ? 'text-accent-600' : 'text-secondary-600'} text-sm`}></i>
                   </span>
-                  {/* Content */}
                   <div className="flex-1 min-w-0 pt-1">
                     <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-sm font-semibold text-foreground-950">{punch.time}</span>
+                      <span className="text-sm font-semibold text-foreground-950">{toDisplayTime(punch.time)}</span>
                       <span
                         className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${
                           isIn ? 'bg-accent-100 text-accent-700' : 'bg-secondary-100 text-secondary-700'
@@ -273,7 +367,6 @@ export default function AttendancePage() {
         </div>
       )}
 
-      {/* Latest photo preview */}
       {latestPhoto && !isCapturing && (
         <div className="mb-5">
           <h3 className="text-xs font-semibold text-foreground-700 mb-2">Ảnh chấm công vừa chụp</h3>
@@ -283,7 +376,6 @@ export default function AttendancePage() {
         </div>
       )}
 
-      {/* GPS Status */}
       <div className="mb-5">
         <h2 className="text-sm font-heading font-semibold text-foreground-950 mb-3">Thông tin chấm công</h2>
         <div className="space-y-2">
@@ -323,13 +415,25 @@ export default function AttendancePage() {
               <p className="text-xs text-foreground-500">
                 {todayPunches.length === 0
                   ? 'Chưa có lần chấm công nào'
-                  : `${todayPunches.length} lần — lần đầu ${todayPunches[0].time}${todayPunches.length > 1 ? `, lần cuối ${todayPunches[todayPunches.length - 1].time}` : ''}`}
+                  : `${todayPunches.length} lần — lần đầu ${toDisplayTime(todayPunches[0].time)}${todayPunches.length > 1 ? `, lần cuối ${toDisplayTime(todayPunches[todayPunches.length - 1].time)}` : ''}`}
               </p>
             </div>
             <span className="w-9 h-9 rounded-lg bg-background-100 flex items-center justify-center shrink-0">
               <span className="text-sm font-bold text-foreground-700">{todayPunches.length}</span>
             </span>
           </div>
+
+          {todayRecord && (
+            <div className="flex items-center gap-3 p-3.5 bg-background-50 border border-background-200/70 rounded-xl">
+              <span className="w-9 h-9 bg-accent-100 rounded-lg flex items-center justify-center shrink-0">
+                <i className="ri-shield-check-line text-lg text-accent-600"></i>
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-foreground-950">Trạng thái hôm nay</p>
+                <p className="text-xs text-foreground-500 truncate">{todayRecord.statusLabel}</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -338,11 +442,12 @@ export default function AttendancePage() {
         type="file"
         accept="image/*"
         capture="environment"
-        onChange={handleFileChange}
+        onChange={(e) => {
+          void handleFileChange(e);
+        }}
         className="hidden"
       />
 
-      {/* Toast notification */}
       {toast && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] animate-[fadeInUp_0.3s_ease-out] max-w-[390px] w-[calc(100%-32px)]">
           <div className={`flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg ${
@@ -355,6 +460,24 @@ export default function AttendancePage() {
             </span>
             <p className="text-sm font-medium">{toast.message}</p>
           </div>
+        </div>
+      )}
+
+      {isLoading && (
+        <div className="fixed inset-0 bg-background-50/70 backdrop-blur-[1px] flex items-center justify-center z-40">
+          <div className="w-10 h-10 border-4 border-primary-200 border-t-primary-500 rounded-full animate-spin"></div>
+        </div>
+      )}
+
+      {!user?.id && (
+        <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-600">
+          Không tìm thấy thông tin người dùng hợp lệ để chấm công.
+        </div>
+      )}
+
+      {todayRecord?.date !== todayStr && todayRecord !== null && (
+        <div className="mt-3 rounded-xl border border-secondary-200 bg-secondary-50 p-3 text-xs text-secondary-700">
+          Bản ghi hiện tại không thuộc ngày hôm nay. Vui lòng làm mới trang.
         </div>
       )}
     </div>

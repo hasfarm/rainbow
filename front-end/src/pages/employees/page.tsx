@@ -57,6 +57,16 @@ const emptyForm: EmployeeForm = {
   current_salary: '',
 };
 
+function getAuthHeaders(extra?: HeadersInit): HeadersInit {
+  const token = localStorage.getItem('hrm_auth_token');
+
+  return {
+    Accept: 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(extra ?? {}),
+  };
+}
+
 export default function EmployeesPage() {
   const { user } = useContext(AuthContext);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -81,7 +91,9 @@ export default function EmployeesPage() {
         url.searchParams.set('q', search.trim());
       }
 
-      const response = await fetch(url.toString());
+      const response = await fetch(url.toString(), {
+        headers: getAuthHeaders(),
+      });
 
       if (!response.ok) {
         throw new Error(`Request failed with status ${response.status}`);
@@ -155,6 +167,7 @@ export default function EmployeesPage() {
     try {
       const response = await fetch(`/back-end/public/api/users/${employee.id}`, {
         method: 'DELETE',
+        headers: getAuthHeaders(),
       });
 
       if (!response.ok) {
@@ -204,10 +217,9 @@ export default function EmployeesPage() {
 
       const response = await fetch(url, {
         method: editingEmployeeId === null ? 'POST' : 'PUT',
-        headers: {
+        headers: getAuthHeaders({
           'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
+        }),
         body: JSON.stringify(payload),
       });
 

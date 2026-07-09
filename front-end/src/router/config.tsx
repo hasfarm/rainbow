@@ -1,6 +1,7 @@
 import type { RouteObject } from "react-router-dom";
 import NotFound from "../pages/NotFound";
 import LoginPage from "../pages/login/page";
+import HomePage from "../pages/home/page";
 import DashboardPage from "../pages/dashboard/page";
 import AttendancePage from "../pages/attendance/page";
 import AttendanceHistoryPage from "../pages/attendance/history/page";
@@ -25,6 +26,15 @@ import PayslipPage from "../pages/payslip/page";
 import PayslipDetailPage from "../pages/payslip/detail/page";
 import { AppLayout } from "../components/feature/AppLayout";
 import { ProtectedRoute } from "../components/feature/ProtectedRoute";
+import { AuthContext } from "@/hooks/useAuth";
+
+function LandingPage() {
+  const { user } = useContext(AuthContext);
+  const role = (user?.role ?? "").toLowerCase();
+  const isAdmin = role === "admin";
+
+  return isAdmin ? <DashboardPage /> : <HomePage />;
+}
 
 const routes: RouteObject[] = [
   {
@@ -41,11 +51,15 @@ const routes: RouteObject[] = [
     children: [
       {
         index: true,
-        element: <DashboardPage />,
+        element: <LandingPage />,
+      },
+      {
+        path: "home",
+        element: <HomePage />,
       },
       {
         path: "dashboard",
-        element: <DashboardPage />,
+        element: <LandingPage />,
       },
       {
         path: "attendance",

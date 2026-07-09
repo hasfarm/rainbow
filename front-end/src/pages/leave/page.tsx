@@ -1,16 +1,25 @@
-import { useState, useContext } from 'react';
+import { useContext, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AuthContext } from '@/hooks/useAuth';
-import { mockLeaves, leaveTypeLabels, leaveTypeIcons, leaveTypeColors, leaveStatusLabels, leaveStatusColors, type LeaveStatus } from '@/mocks/leaves';
+import {
+  fetchLeaves,
+  leaveStatusColors,
+  leaveStatusLabels,
+  leaveTypeColors,
+  leaveTypeIcons,
+  leaveTypeLabels,
+  type LeaveRecord,
+  type LeaveStatus,
+} from './api';
 import { LeaveCard } from './components/LeaveCard';
 import { format, parseISO, differenceInDays } from 'date-fns';
 import { vi } from 'date-fns/locale';
 
 const statusTabs: { key: LeaveStatus | 'all'; label: string }[] = [
-  { key: 'all', label: 'Tất cả' },
-  { key: 'pending', label: 'Chờ duyệt' },
-  { key: 'approved', label: 'Đã duyệt' },
-  { key: 'rejected', label: 'Từ chối' },
+  { key: 'all', label: 'Tat ca' },
+  { key: 'pending', label: 'Cho duyet' },
+  { key: 'approved', label: 'Da duyet' },
+  { key: 'rejected', label: 'Tu choi' },
 ];
 
 function formatDateRange(startDate: string, endDate: string, startTime: string | null, endTime: string | null): string {
@@ -19,42 +28,55 @@ function formatDateRange(startDate: string, endDate: string, startTime: string |
   const days = differenceInDays(end, start);
 
   if (startTime && endTime) {
-    return `${format(start, 'dd/MM/yyyy', { locale: vi })} - ${startTime} → ${endTime}`;
-  }
-  if (startTime) {
-    return `${format(start, 'dd/MM/yyyy', { locale: vi })} - đến lúc ${startTime}`;
-  }
-  if (endTime) {
-    return `${format(start, 'dd/MM/yyyy', { locale: vi })} - về lúc ${endTime}`;
+    return `${format(start, 'dd/MM/yyyy', { locale: vi })} - ${startTime} -> ${endTime}`;
   }
   if (days === 0) {
     return format(start, 'dd/MM/yyyy', { locale: vi });
   }
-  return `${format(start, 'dd/MM/yyyy', { locale: vi })} → ${format(end, 'dd/MM/yyyy', { locale: vi })} (${days + 1} ngày)`;
+  return `${format(start, 'dd/MM/yyyy', { locale: vi })} -> ${format(end, 'dd/MM/yyyy', { locale: vi })} (${days + 1} ngay)`;
 }
 
 export default function LeavePage() {
   const { user } = useContext(AuthContext);
   const [activeTab, setActiveTab] = useState<LeaveStatus | 'all'>('all');
+  const [leaves, setLeaves] = useState<LeaveRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const userLeaves = mockLeaves.filter((l) => l.userId === user?.id);
-  const filteredLeaves = activeTab === 'all'
-    ? userLeaves
-    : userLeaves.filter((l) => l.status === activeTab);
+  useEffect(() => {
+    async function load() {
+      setIsLoading(true);
+      setError(null);
 
-  const pendingCount = userLeaves.filter((l) => l.status === 'pending').length;
-  const approvedCount = userLeaves.filter((l) => l.status === 'approved').length;
+      try {
+        const records = await fetchLeaves();
+        setLeaves(records);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Khong the tai danh sach don nghi.');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    void load();
+  }, []);
+
+  const filteredLeaves = useMemo(() => {
+    return activeTab === 'all' ? leaves : leaves.filter((item) => item.status === activeTab);
+  }, [activeTab, leaves]);
+
+  const pendingCount = leaves.filter((item) => item.status === 'pending').length;
+  const approvedCount = leaves.filter((item) => item.status === 'approved').length;
   const remainingLeave = user?.annualLeave ?? 0;
 
   return (
     <div className="px-4 pt-6 pb-4">
-      {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-3">
           <Link to="/dashboard" className="w-9 h-9 bg-background-100 rounded-lg flex items-center justify-center hover:bg-background-200 transition-colors cursor-pointer shrink-0">
             <i className="ri-arrow-left-line text-foreground-600"></i>
           </Link>
-          <h1 className="text-lg font-heading font-bold text-foreground-950">Xin nghỉ phép</h1>
+          <h1 className="text-lg font-heading font-bold text-foreground-950">Xin nghi phep</h1>
         </div>
         <Link
           to="/leave/new"
@@ -63,27 +85,25 @@ export default function LeavePage() {
           <span className="w-4 h-4 flex items-center justify-center">
             <i className="ri-add-line text-sm"></i>
           </span>
-          Tạo đơn
+          Tao don
         </Link>
       </div>
 
-      {/* Stats summary */}
       <div className="grid grid-cols-3 gap-3 mb-5">
         <div className="bg-background-50 border border-background-200/70 rounded-xl p-3 text-center">
           <p className="text-xl font-heading font-bold text-accent-600">{remainingLeave}</p>
-          <p className="text-[11px] text-foreground-500 mt-0.5">Ngày phép</p>
+          <p className="text-[11px] text-foreground-500 mt-0.5">Ngay phep</p>
         </div>
         <div className="bg-background-50 border border-background-200/70 rounded-xl p-3 text-center">
           <p className="text-xl font-heading font-bold text-secondary-600">{pendingCount}</p>
-          <p className="text-[11px] text-foreground-500 mt-0.5">Chờ duyệt</p>
+          <p className="text-[11px] text-foreground-500 mt-0.5">Cho duyet</p>
         </div>
         <div className="bg-background-50 border border-background-200/70 rounded-xl p-3 text-center">
           <p className="text-xl font-heading font-bold text-accent-600">{approvedCount}</p>
-          <p className="text-[11px] text-foreground-500 mt-0.5">Đã duyệt</p>
+          <p className="text-[11px] text-foreground-500 mt-0.5">Da duyet</p>
         </div>
       </div>
 
-      {/* Filter tabs */}
       <div className="flex items-center gap-1.5 mb-4 overflow-x-auto no-scrollbar">
         {statusTabs.map((tab) => (
           <button
@@ -101,23 +121,34 @@ export default function LeavePage() {
         ))}
       </div>
 
-      {/* Leave list */}
-      {filteredLeaves.length === 0 ? (
+      {isLoading && (
+        <div className="space-y-3">
+          <div className="skeleton h-24"></div>
+          <div className="skeleton h-24"></div>
+          <div className="skeleton h-24"></div>
+        </div>
+      )}
+
+      {!isLoading && error && (
+        <div className="rounded-xl border border-primary-200 bg-primary-50 px-4 py-3 text-sm text-primary-700">{error}</div>
+      )}
+
+      {!isLoading && !error && filteredLeaves.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <span className="w-16 h-16 bg-background-100 rounded-2xl flex items-center justify-center mb-4">
             <i className="ri-calendar-check-line text-2xl text-foreground-300"></i>
           </span>
-          <p className="text-sm text-foreground-500 mb-1">
-            {activeTab === 'all' ? 'Chưa có đơn nghỉ phép nào' : `Không có đơn nào ở trạng thái "${statusTabs.find(t => t.key === activeTab)?.label}"`}
-          </p>
+          <p className="text-sm text-foreground-500 mb-1">Chua co don nghi phep nao</p>
           <Link
             to="/leave/new"
             className="text-xs text-primary-500 font-medium hover:text-primary-600 transition-colors cursor-pointer mt-2"
           >
-            + Tạo đơn xin nghỉ mới
+            + Tao don xin nghi moi
           </Link>
         </div>
-      ) : (
+      )}
+
+      {!isLoading && !error && filteredLeaves.length > 0 && (
         <div className="flex flex-col gap-3">
           {filteredLeaves.map((leave) => (
             <LeaveCard

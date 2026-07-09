@@ -4,11 +4,12 @@ import { mockLeaves } from '@/mocks/leaves';
 import { mockNotifications } from '@/mocks/notifications';
 import { mockOvertimes } from '@/mocks/overtimes';
 import { AdminSidebar } from '@/components/feature/AdminSidebar';
-import { useContext } from 'react';
+import { useContext, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 export default function DashboardPage() {
   const { user } = useContext(AuthContext);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const totalEmployees = 26;
   const userAttendance = mockAttendance.filter((item) => item.userId === user?.id);
@@ -24,14 +25,39 @@ export default function DashboardPage() {
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   return (
-    <div className="min-h-screen bg-background-100 p-3 md:p-6">
-      <div className="mx-auto max-w-[1320px] rounded-3xl border border-background-200 bg-background-50 shadow-[0_24px_60px_rgba(15,23,42,0.08)] overflow-hidden">
+    <div className="min-h-screen bg-background-100 p-0 md:p-6">
+      <div className="mx-auto max-w-[1320px] rounded-none md:rounded-3xl border-0 md:border md:border-background-200 bg-background-50 shadow-none md:shadow-[0_24px_60px_rgba(15,23,42,0.08)] overflow-hidden">
         <div className="grid md:grid-cols-[240px_1fr] min-h-[760px]">
-          <AdminSidebar />
+          {isSidebarOpen && (
+            <button
+              type="button"
+              aria-label="Close menu overlay"
+              onClick={() => setIsSidebarOpen(false)}
+              className="fixed inset-0 z-30 bg-foreground-950/35 backdrop-blur-[1px] md:hidden"
+            />
+          )}
 
-          <section className="p-4 md:p-6 lg:p-7">
-            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-              <div className="relative w-full md:w-[360px]">
+          <AdminSidebar
+            className={`fixed z-40 top-0 left-0 h-full w-[280px] max-w-[86vw] transform transition-transform duration-300 md:static md:w-auto md:h-auto md:transform-none ${
+              isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+            }`}
+            onClose={() => setIsSidebarOpen(false)}
+            onItemClick={() => setIsSidebarOpen(false)}
+          />
+
+          <section className="p-3.5 sm:p-4 md:p-6 lg:p-7">
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-2.5 sm:gap-3">
+              <div className="flex items-center gap-2 w-full md:w-auto">
+                <button
+                  type="button"
+                  onClick={() => setIsSidebarOpen(true)}
+                  className="md:hidden h-10 w-10 rounded-xl border border-background-200 text-foreground-700 bg-background-50"
+                  aria-label="Open menu"
+                >
+                  <i className="ri-menu-line text-xl"></i>
+                </button>
+
+                <div className="relative w-full md:w-[360px]">
                 <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400"></i>
                 <input
                   type="text"
@@ -39,12 +65,13 @@ export default function DashboardPage() {
                   className="w-full rounded-xl border border-background-200 bg-background-50 py-2.5 pl-10 pr-4 text-sm outline-none focus:border-primary-300"
                 />
               </div>
+              </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2.5 sm:gap-3 w-full md:w-auto justify-end">
                 <button className="h-10 w-10 rounded-xl border border-background-200 text-foreground-500 hover:bg-background-100">
                   <i className="ri-notification-3-line"></i>
                 </button>
-                <Link to="/profile" className="flex items-center gap-2 rounded-xl border border-background-200 bg-background-50 px-3 py-1.5">
+                <Link to="/profile" className="flex items-center gap-2 rounded-xl border border-background-200 bg-background-50 px-2.5 sm:px-3 py-1.5 max-w-[230px]">
                   <span className="h-9 w-9 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center overflow-hidden">
                     {user?.avatar ? (
                       <img src={user.avatar} alt={user.name} className="h-full w-full object-cover" />
@@ -52,9 +79,9 @@ export default function DashboardPage() {
                       <i className="ri-user-line text-lg"></i>
                     )}
                   </span>
-                  <span>
-                    <span className="block text-sm font-semibold text-foreground-900">{user?.name ?? 'Staff User'}</span>
-                    <span className="block text-[11px] text-foreground-500">{user?.position ?? 'HR'}</span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-foreground-900 truncate">{user?.name ?? 'Staff User'}</span>
+                    <span className="block text-[11px] text-foreground-500 truncate">{user?.position ?? 'HR'}</span>
                   </span>
                 </Link>
               </div>
@@ -68,15 +95,15 @@ export default function DashboardPage() {
                 <StatCard title="Total Leave" value={totalLeave} trend="+2%" icon="ri-calendar-check-line" accent="foreground" />
               </div>
 
-              <div className="rounded-2xl border border-background-200 bg-background-50 p-4">
+              <div className="rounded-2xl border border-background-200 bg-background-50 p-3.5 sm:p-4">
                 <div className="mb-2 flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-foreground-900">Daily attendance statistic</h3>
                   <p className="text-xs text-foreground-400">This week</p>
                 </div>
-                <div className="grid grid-cols-7 gap-2 items-end h-[170px] mt-3">
+                <div className="grid grid-cols-7 gap-1.5 sm:gap-2 items-end h-[160px] sm:h-[170px] mt-3">
                   {weekDays.map((day, idx) => (
                     <div key={day} className="flex flex-col items-center gap-2">
-                      <div className="w-6 rounded-full bg-background-100 p-1 flex flex-col justify-end h-[130px] gap-1">
+                      <div className="w-5 sm:w-6 rounded-full bg-background-100 p-1 flex flex-col justify-end h-[118px] sm:h-[130px] gap-1">
                         <span className="rounded-full bg-primary-500" style={{ height: `${attendanceBars[idx]}%` }}></span>
                         <span className="rounded-full bg-accent-400" style={{ height: `${absentBars[idx]}%` }}></span>
                       </div>
@@ -88,7 +115,7 @@ export default function DashboardPage() {
             </div>
 
             <div className="grid gap-4 xl:grid-cols-3 mb-4">
-              <div className="rounded-2xl border border-background-200 bg-background-50 p-4 xl:col-span-1">
+              <div className="rounded-2xl border border-background-200 bg-background-50 p-3.5 sm:p-4 xl:col-span-1">
                 <div className="mb-3 flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-foreground-900">Recruitment</h3>
                   <span className="text-xs text-foreground-500">Yearly</span>
@@ -100,7 +127,7 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-background-200 bg-background-50 p-4 xl:col-span-1">
+              <div className="rounded-2xl border border-background-200 bg-background-50 p-3.5 sm:p-4 xl:col-span-1">
                 <div className="mb-3 flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-foreground-900">Overtime Summary</h3>
                   <span className="text-xs text-red-400">-31%</span>
@@ -113,7 +140,7 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-background-200 bg-background-50 p-4 xl:col-span-1">
+              <div className="rounded-2xl border border-background-200 bg-background-50 p-3.5 sm:p-4 xl:col-span-1">
                 <div className="mb-3 flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-foreground-900">Leave Application</h3>
                   <span className="text-xs text-foreground-500">See all</span>
@@ -132,7 +159,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-background-200 bg-background-50 p-4">
+            <div className="rounded-2xl border border-background-200 bg-background-50 p-3.5 sm:p-4">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <h3 className="text-sm font-semibold text-foreground-900">Employee list</h3>
                 <button className="rounded-xl bg-primary-500 text-white px-3.5 py-2 text-sm font-medium hover:bg-primary-600 transition-colors">

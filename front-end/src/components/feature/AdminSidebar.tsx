@@ -18,19 +18,33 @@ const defaultItems: AdminSidebarItem[] = [
 type AdminSidebarProps = {
   items?: AdminSidebarItem[];
   className?: string;
+  onItemClick?: () => void;
+  onClose?: () => void;
 };
 
-export function AdminSidebar({ items = defaultItems, className = '' }: AdminSidebarProps) {
+export function AdminSidebar({ items = defaultItems, className = '', onItemClick, onClose }: AdminSidebarProps) {
   return (
     <aside className={`bg-gradient-to-b from-background-50 to-background-100 border-r border-background-200 p-4 md:p-5 ${className}`}>
-      <div className="mb-7 flex items-center gap-2.5">
-        <span className="h-10 w-10 rounded-xl bg-primary-500 text-white flex items-center justify-center">
-          <i className="ri-sparkling-2-fill text-xl"></i>
-        </span>
-        <div>
-          <p className="text-lg font-heading font-bold text-foreground-900 leading-tight">Rainbow</p>
-          <p className="text-xs text-foreground-500">HR Workspace</p>
+      <div className="mb-7 flex items-center justify-between gap-2.5">
+        <div className="flex items-center gap-2.5">
+          <span className="h-10 w-10 rounded-xl bg-primary-500 text-white flex items-center justify-center">
+            <i className="ri-sparkling-2-fill text-xl"></i>
+          </span>
+          <div>
+            <p className="text-lg font-heading font-bold text-foreground-900 leading-tight">Rainbow</p>
+            <p className="text-xs text-foreground-500">HR Workspace</p>
+          </div>
         </div>
+        {onClose && (
+          <button
+            type="button"
+            aria-label="Close menu"
+            onClick={onClose}
+            className="md:hidden h-9 w-9 rounded-lg border border-background-200 text-foreground-600 hover:bg-background-100"
+          >
+            <i className="ri-close-line text-xl"></i>
+          </button>
+        )}
       </div>
 
       <p className="text-xs font-semibold tracking-wide text-foreground-400 uppercase mb-3">Menu</p>
@@ -40,6 +54,7 @@ export function AdminSidebar({ items = defaultItems, className = '' }: AdminSide
             key={item.label}
             to={item.to}
             end={item.end}
+            onClick={onItemClick}
             className={({ isActive }) =>
               `flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm transition-colors ${
                 isActive

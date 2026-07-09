@@ -1,6 +1,4 @@
 import { Link } from 'react-router-dom';
-import { useContext } from 'react';
-import { AuthContext } from '@/hooks/useAuth';
 
 interface LeaveCardProps {
   id: string;

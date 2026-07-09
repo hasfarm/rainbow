@@ -36,7 +36,9 @@
   "name": "react",
   "private": true,
   "scripts": {
-    "build": "vite build",
+    "build": "vite build --outDir out",
+    "build:admin": "vite build --outDir ../admin",
+    "build:out": "vite build --outDir out",
     "dev": "vite",
     "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",

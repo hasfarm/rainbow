@@ -8,8 +8,12 @@ const isPreview = process.env.IS_PREVIEW ? true : false;
 //const proxyPlugins = isPreview ? [readdyJsxRuntimeProxyPlugin()] : [];
 // https://vite.dev/config/
 export default defineConfig(({ command }) => {
+  const lifecycleEvent = process.env.npm_lifecycle_event || "";
+  const defaultBuildBase = lifecycleEvent.includes("build:admin")
+    ? "/admin/"
+    : "/front-end/out/";
   const base =
-    process.env.BASE_PATH || (command === "build" ? "/front-end/out/" : "/");
+    process.env.BASE_PATH || (command === "build" ? defaultBuildBase : "/");
 
   return {
   define: {
@@ -75,7 +79,7 @@ export default defineConfig(({ command }) => {
   base,
   build: {
     sourcemap: true,
-    outDir: 'out',
+    outDir: '../admin',
   },
   resolve: {
     alias: {
