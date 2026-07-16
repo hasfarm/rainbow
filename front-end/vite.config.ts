@@ -11,7 +11,7 @@ export default defineConfig(({ command }) => {
   const lifecycleEvent = process.env.npm_lifecycle_event || "";
   const defaultBuildBase = lifecycleEvent.includes("build:admin")
     ? "/admin/"
-    : "/front-end/out/";
+    : "/";
   const base =
     process.env.BASE_PATH || (command === "build" ? defaultBuildBase : "/");
 

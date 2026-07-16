@@ -2,7 +2,6 @@ import { useState, useContext, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthContext } from '@/hooks/useAuth';
 import { mockOvertimes, type OvertimeRecord, type OvertimeType, overtimeTypeLabels, overtimeTypeIcons } from '@/mocks/overtimes';
-import { mockUsers } from '@/mocks/users';
 import { format } from 'date-fns';
 import { formatDaysEquivalent, getDailyWorkHours } from '@/utils/workRules';
 
@@ -29,13 +28,40 @@ const overtimeTypes: { key: OvertimeType; label: string; icon: string }[] = [
   { key: 'holiday', label: 'Ngày lễ', icon: 'ri-calendar-event-line' },
 ];
 
-const approverUsers = mockUsers.filter(
-  (u) => ['manager', 'deputy_warehouse', 'warehouse_manager'].includes(u.role)
-);
+type UserApi = {
+  id: number;
+  employee_code: string | null;
+  name: string;
+  role: string | null;
+  department: string | null;
+  position: string | null;
+  avatar?: string | null;
+};
+
+type ApproverUser = {
+  id: string;
+  employeeCode: string;
+  name: string;
+  role: string;
+  department: string;
+  position: string;
+  avatar: string | null;
+};
+
+function getAuthHeaders(): HeadersInit {
+  const token = localStorage.getItem('hrm_auth_token');
+
+  return {
+    Accept: 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
 
 export default function OvertimeNewPage() {
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
+  const [approverUsers, setApproverUsers] = useState<ApproverUser[]>([]);
+  const [loadingApprovers, setLoadingApprovers] = useState(true);
 
   const [overtimeType, setOvertimeType] = useState<OvertimeType>('regular');
   const [date, setDate] = useState('');
@@ -46,6 +72,8 @@ export default function OvertimeNewPage() {
   const [reason, setReason] = useState('');
   const [selectedApproverId, setSelectedApproverId] = useState('');
   const [selectedApprover2Id, setSelectedApprover2Id] = useState('');
+  const [approverQuery1, setApproverQuery1] = useState('');
+  const [approverQuery2, setApproverQuery2] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isDropdown2Open, setIsDropdown2Open] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -68,6 +96,111 @@ export default function OvertimeNewPage() {
   const selectedApprover = approverUsers.find((u) => u.id === selectedApproverId);
   const selectedApprover2 = approverUsers.find((u) => u.id === selectedApprover2Id);
 
+  const startTotalMinutes = startHour && startMinute ? (Number(startHour) * 60) + Number(startMinute) : null;
+  const endHourNumber = endHour ? Number(endHour) : null;
+
+  const filteredApproverUsersLevel1 = approverUsers.filter((u) => {
+    const query = approverQuery1.trim().toLowerCase();
+    if (!query) {
+      return true;
+    }
+
+    return `${u.name} ${u.position} ${u.department}`.toLowerCase().includes(query);
+  });
+
+  const filteredApproverUsersLevel2 = approverUsers.filter((u) => {
+    const query = approverQuery2.trim().toLowerCase();
+    if (!query) {
+      return true;
+    }
+
+    return `${u.name} ${u.position} ${u.department}`.toLowerCase().includes(query);
+  });
+
+  const isEndHourDisabled = (hour: string): boolean => {
+    if (!startHour) {
+      return false;
+    }
+
+    return Number(hour) < Number(startHour);
+  };
+
+  const isEndMinuteDisabled = (minute: string): boolean => {
+    if (!startHour || !startMinute || endHourNumber === null) {
+      return false;
+    }
+
+    if (endHourNumber > Number(startHour)) {
+      return false;
+    }
+
+    if (endHourNumber < Number(startHour)) {
+      return true;
+    }
+
+    return Number(minute) <= Number(startMinute);
+  };
+
+  useEffect(() => {
+    async function loadApprovers() {
+      setLoadingApprovers(true);
+
+      try {
+        const url = new URL('/back-end/public/api/users', window.location.origin);
+        url.searchParams.set('per_page', '200');
+
+        const response = await fetch(url.toString(), {
+          headers: getAuthHeaders(),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Request failed with status ${response.status}`);
+        }
+
+        const payload = (await response.json()) as { data?: UserApi[] };
+        const records = Array.isArray(payload.data) ? payload.data : [];
+
+        const currentUserName = (user?.name ?? '').trim().toLowerCase();
+        const currentUserCode = (user?.id ?? '').trim().toLowerCase();
+
+        const mapped = records
+          .map((item): ApproverUser | null => {
+            const employeeCode = (item.employee_code ?? '').trim();
+            const fallbackCode = String(item.id);
+
+            if (!employeeCode && !fallbackCode) {
+              return null;
+            }
+
+            return {
+              id: fallbackCode,
+              employeeCode: employeeCode || fallbackCode,
+              name: item.name,
+              role: item.role ?? '',
+              department: item.department ?? '',
+              position: item.position ?? '',
+              avatar: item.avatar ?? null,
+            };
+          })
+          .filter((item): item is ApproverUser => item !== null)
+          .filter((item) => {
+            const sameName = currentUserName !== '' && item.name.trim().toLowerCase() === currentUserName;
+            const sameCode = currentUserCode !== '' && item.employeeCode.trim().toLowerCase() === currentUserCode;
+
+            return !sameName && !sameCode;
+          });
+
+        setApproverUsers(mapped);
+      } catch {
+        setApproverUsers([]);
+      } finally {
+        setLoadingApprovers(false);
+      }
+    }
+
+    void loadApprovers();
+  }, [user?.id, user?.name]);
+
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -80,6 +213,29 @@ export default function OvertimeNewPage() {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  useEffect(() => {
+    if (!startHour && !startMinute) {
+      return;
+    }
+
+    if (endHour && startHour && Number(endHour) < Number(startHour)) {
+      setEndHour('');
+      setEndMinute('');
+      return;
+    }
+
+    if (
+      endHour &&
+      endMinute &&
+      startHour &&
+      startMinute &&
+      Number(endHour) === Number(startHour) &&
+      Number(endMinute) <= Number(startMinute)
+    ) {
+      setEndMinute('');
+    }
+  }, [endHour, endMinute, startHour, startMinute]);
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -104,6 +260,9 @@ export default function OvertimeNewPage() {
     }
     if (!selectedApprover2Id) {
       newErrors.approver2 = 'Vui lòng chọn người duyệt cấp 2';
+    }
+    if (selectedApproverId && user?.id && selectedApprover?.employeeCode.toLowerCase() === user.id.toLowerCase()) {
+      newErrors.approver = 'Người duyệt cấp 1 không được trùng người tạo phiếu';
     }
     if (selectedApproverId && selectedApprover2Id && selectedApproverId === selectedApprover2Id) {
       newErrors.approver2 = 'Người duyệt cấp 2 không được trùng cấp 1';
@@ -213,6 +372,7 @@ export default function OvertimeNewPage() {
         <div className="relative" ref={dropdownRef}>
           <button
             type="button"
+            disabled={loadingApprovers}
             onClick={() => { setIsDropdownOpen((prev) => !prev); setIsDropdown2Open(false); }}
             className={`w-full flex items-center justify-between px-3.5 py-2.5 text-sm bg-background-50 border rounded-lg outline-none transition-colors focus:border-primary-400 focus:ring-1 focus:ring-primary-400/50 cursor-pointer ${
               errors.approver ? 'border-primary-400' : 'border-background-200/70'
@@ -236,13 +396,23 @@ export default function OvertimeNewPage() {
 
           {isDropdownOpen && (
             <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-background-50 border border-background-200/70 rounded-xl shadow-sm overflow-hidden animate-[fadeIn_0.15s_ease-out]">
-              {approverUsers.map((u) => (
+              <div className="p-2 border-b border-background-200/70">
+                <input
+                  value={approverQuery1}
+                  onChange={(e) => setApproverQuery1(e.target.value)}
+                  placeholder="Tìm người duyệt cấp 1..."
+                  className="w-full rounded-lg border border-background-200/70 px-3 py-2 text-sm outline-none focus:border-primary-400"
+                />
+              </div>
+              <div className="max-h-56 overflow-y-auto">
+                {filteredApproverUsersLevel1.map((u) => (
                 <button
                   key={u.id}
                   type="button"
                   disabled={u.id === selectedApprover2Id}
                   onClick={() => {
                     setSelectedApproverId(u.id);
+                    setApproverQuery1('');
                     setIsDropdownOpen(false);
                     setErrors((prev) => ({ ...prev, approver: '', approver2: '' }));
                   }}
@@ -264,6 +434,10 @@ export default function OvertimeNewPage() {
                   )}
                 </button>
               ))}
+                {filteredApproverUsersLevel1.length === 0 && (
+                  <p className="px-3.5 py-3 text-xs text-foreground-500">Không tìm thấy người duyệt phù hợp</p>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -278,6 +452,7 @@ export default function OvertimeNewPage() {
         <div className="relative" ref={dropdown2Ref}>
           <button
             type="button"
+            disabled={loadingApprovers}
             onClick={() => { setIsDropdown2Open((prev) => !prev); setIsDropdownOpen(false); }}
             className={`w-full flex items-center justify-between px-3.5 py-2.5 text-sm bg-background-50 border rounded-lg outline-none transition-colors focus:border-primary-400 focus:ring-1 focus:ring-primary-400/50 cursor-pointer ${
               errors.approver2 ? 'border-primary-400' : 'border-background-200/70'
@@ -301,13 +476,23 @@ export default function OvertimeNewPage() {
 
           {isDropdown2Open && (
             <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-background-50 border border-background-200/70 rounded-xl shadow-sm overflow-hidden animate-[fadeIn_0.15s_ease-out]">
-              {approverUsers.map((u) => (
+              <div className="p-2 border-b border-background-200/70">
+                <input
+                  value={approverQuery2}
+                  onChange={(e) => setApproverQuery2(e.target.value)}
+                  placeholder="Tìm người duyệt cấp 2..."
+                  className="w-full rounded-lg border border-background-200/70 px-3 py-2 text-sm outline-none focus:border-primary-400"
+                />
+              </div>
+              <div className="max-h-56 overflow-y-auto">
+                {filteredApproverUsersLevel2.map((u) => (
                 <button
                   key={u.id}
                   type="button"
                   disabled={u.id === selectedApproverId}
                   onClick={() => {
                     setSelectedApprover2Id(u.id);
+                    setApproverQuery2('');
                     setIsDropdown2Open(false);
                     setErrors((prev) => ({ ...prev, approver2: '' }));
                   }}
@@ -329,6 +514,10 @@ export default function OvertimeNewPage() {
                   )}
                 </button>
               ))}
+                {filteredApproverUsersLevel2.length === 0 && (
+                  <p className="px-3.5 py-3 text-xs text-foreground-500">Không tìm thấy người duyệt phù hợp</p>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -365,7 +554,17 @@ export default function OvertimeNewPage() {
             <div className="relative flex-1">
               <select
                 value={startHour}
-                onChange={(e) => { setStartHour(e.target.value); setErrors((prev) => ({ ...prev, startTime: '', endTime: '' })); }}
+                onChange={(e) => {
+                  const nextStartHour = e.target.value;
+                  setStartHour(nextStartHour);
+
+                  if (endHour && nextStartHour && Number(endHour) < Number(nextStartHour)) {
+                    setEndHour('');
+                    setEndMinute('');
+                  }
+
+                  setErrors((prev) => ({ ...prev, startTime: '', endTime: '' }));
+                }}
                 className={`w-full px-3 py-2.5 text-sm bg-background-50 border rounded-lg outline-none appearance-none cursor-pointer transition-colors focus:border-primary-400 focus:ring-1 focus:ring-primary-400/50 ${
                   errors.startTime && !startHour ? 'border-primary-400' : 'border-background-200/70'
                 }`}
@@ -383,7 +582,23 @@ export default function OvertimeNewPage() {
             <div className="relative flex-1">
               <select
                 value={startMinute}
-                onChange={(e) => { setStartMinute(e.target.value); setErrors((prev) => ({ ...prev, startTime: '', endTime: '' })); }}
+                onChange={(e) => {
+                  const nextStartMinute = e.target.value;
+                  setStartMinute(nextStartMinute);
+
+                  if (
+                    endHour &&
+                    endMinute &&
+                    startHour &&
+                    Number(endHour) === Number(startHour) &&
+                    nextStartMinute &&
+                    Number(endMinute) <= Number(nextStartMinute)
+                  ) {
+                    setEndMinute('');
+                  }
+
+                  setErrors((prev) => ({ ...prev, startTime: '', endTime: '' }));
+                }}
                 className={`w-full px-3 py-2.5 text-sm bg-background-50 border rounded-lg outline-none appearance-none cursor-pointer transition-colors focus:border-primary-400 focus:ring-1 focus:ring-primary-400/50 ${
                   errors.startTime && !startMinute ? 'border-primary-400' : 'border-background-200/70'
                 }`}
@@ -416,14 +631,32 @@ export default function OvertimeNewPage() {
             <div className="relative flex-1">
               <select
                 value={endHour}
-                onChange={(e) => { setEndHour(e.target.value); setErrors((prev) => ({ ...prev, endTime: '' })); }}
+                onChange={(e) => {
+                  const nextEndHour = e.target.value;
+                  setEndHour(nextEndHour);
+
+                  if (
+                    nextEndHour &&
+                    endMinute &&
+                    startHour &&
+                    startMinute &&
+                    Number(nextEndHour) === Number(startHour) &&
+                    Number(endMinute) <= Number(startMinute)
+                  ) {
+                    setEndMinute('');
+                  }
+
+                  setErrors((prev) => ({ ...prev, endTime: '' }));
+                }}
                 className={`w-full px-3 py-2.5 text-sm bg-background-50 border rounded-lg outline-none appearance-none cursor-pointer transition-colors focus:border-primary-400 focus:ring-1 focus:ring-primary-400/50 ${
                   errors.endTime && !endHour ? 'border-primary-400' : 'border-background-200/70'
                 }`}
               >
                 <option value="">Giờ</option>
                 {HOURS.map((h) => (
-                  <option key={h} value={h}>{h}</option>
+                  <option key={h} value={h} disabled={isEndHourDisabled(h)}>
+                    {h}
+                  </option>
                 ))}
               </select>
               <span className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center pointer-events-none">
@@ -441,7 +674,9 @@ export default function OvertimeNewPage() {
               >
                 <option value="">Phút</option>
                 {MINUTES.map((m) => (
-                  <option key={m} value={m}>{m}</option>
+                  <option key={m} value={m} disabled={isEndMinuteDisabled(m)}>
+                    {m}
+                  </option>
                 ))}
               </select>
               <span className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center pointer-events-none">

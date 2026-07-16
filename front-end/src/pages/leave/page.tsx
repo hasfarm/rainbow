@@ -45,12 +45,19 @@ export default function LeavePage() {
 
   useEffect(() => {
     async function load() {
+      if (!user?.id) {
+        setLeaves([]);
+        setIsLoading(false);
+        return;
+      }
+
       setIsLoading(true);
       setError(null);
 
       try {
-        const records = await fetchLeaves();
-        setLeaves(records);
+        const records = await fetchLeaves(activeTab);
+        // Defense-in-depth: keep only records belonging to the current logged-in user.
+        setLeaves(records.filter((item) => item.userId === user.id));
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Khong the tai danh sach don nghi.');
       } finally {
@@ -59,11 +66,11 @@ export default function LeavePage() {
     }
 
     void load();
-  }, []);
+  }, [activeTab, user?.id]);
 
   const filteredLeaves = useMemo(() => {
-    return activeTab === 'all' ? leaves : leaves.filter((item) => item.status === activeTab);
-  }, [activeTab, leaves]);
+    return leaves;
+  }, [leaves]);
 
   const pendingCount = leaves.filter((item) => item.status === 'pending').length;
   const approvedCount = leaves.filter((item) => item.status === 'approved').length;

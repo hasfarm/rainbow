@@ -186,7 +186,7 @@ export async function deleteLeave(id: string): Promise<void> {
 }
 
 export async function fetchLeaveEmployees(): Promise<EmployeeOption[]> {
-  const url = new URL('/back-end/public/api/employees', window.location.origin);
+  const url = new URL('/back-end/public/api/users', window.location.origin);
   url.searchParams.set('per_page', '200');
 
   const response = await fetch(url.toString(), {

@@ -18,6 +18,8 @@ import LeavePage from "../pages/leave/page";
 import LeaveNewPage from "../pages/leave/new/page";
 import LeaveDetailPage from "../pages/leave/detail/page";
 import LeaveEditPage from "../pages/leave/edit/page";
+import LeaveRemainPage from "../pages/leave-remain/page";
+import AdminPage from "../pages/admin/page";
 import TimelinePage from "../pages/timeline/page";
 import CrmPage from "../pages/crm/page";
 import TimeOffPage from "../pages/timeoff/page";
@@ -60,6 +62,10 @@ const routes: RouteObject[] = [
       {
         path: "dashboard",
         element: <LandingPage />,
+      },
+      {
+        path: "admin",
+        element: <AdminPage />,
       },
       {
         path: "attendance",
@@ -120,6 +126,10 @@ const routes: RouteObject[] = [
       {
         path: "leave/new",
         element: <LeaveNewPage />,
+      },
+      {
+        path: "leave-remain",
+        element: <LeaveRemainPage />,
       },
       {
         path: "timeoff",

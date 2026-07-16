@@ -56,7 +56,8 @@ function getAuthHeaders(withJson = false): HeadersInit {
 
 export default function AttendancePage() {
   const { user } = useContext(AuthContext);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
   const navigate = useNavigate();
 
   const todayStr = format(new Date(), 'yyyy-MM-dd');
@@ -70,6 +71,7 @@ export default function AttendancePage() {
   const [gpsLocation, setGpsLocation] = useState<GpsLocation | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
+  const [isCameraReady, setIsCameraReady] = useState(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [latestPhoto, setLatestPhoto] = useState<string | null>(null);
 
@@ -149,32 +151,19 @@ export default function AttendancePage() {
     });
   }, []);
 
-  const triggerPunch = useCallback(async () => {
-    setIsCapturing(true);
-    setGpsError(null);
-
-    try {
-      await getGpsLocation();
-    } catch {
-      // GPS fail vẫn cho chấm công
+  const stopCameraStream = useCallback(() => {
+    if (cameraStreamRef.current) {
+      cameraStreamRef.current.getTracks().forEach((track) => track.stop());
+      cameraStreamRef.current = null;
     }
-
-    setTimeout(() => {
-      fileInputRef.current?.click();
-    }, 200);
-  }, [getGpsLocation]);
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) {
-      setIsCapturing(false);
-      return;
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
     }
+    setIsCameraReady(false);
+  }, []);
 
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      const photoData = ev.target?.result as string;
-
+  const submitPunch = useCallback(
+    async (photoData: string) => {
       try {
         const response = await fetch('/back-end/public/api/attendance/punches', {
           method: 'POST',
@@ -214,13 +203,116 @@ export default function AttendancePage() {
         const message = err instanceof Error ? err.message : 'Không thể chấm công';
         showToast('error', message);
       } finally {
+        stopCameraStream();
         setIsCapturing(false);
       }
-    };
+    },
+    [gpsLocation?.latitude, gpsLocation?.longitude, stopCameraStream]
+  );
 
-    reader.readAsDataURL(file);
-    e.target.value = '';
-  };
+  const startCamera = useCallback(async () => {
+    if (!window.isSecureContext) {
+      showToast('error', 'Camera chi hoat dong tren HTTPS hoac localhost. Vui long mo bang localhost/https.');
+      setIsCapturing(false);
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      showToast('error', 'Thiết bị không hỗ trợ camera để chấm công');
+      setIsCapturing(false);
+      return;
+    }
+
+    try {
+      let stream: MediaStream;
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: 'user' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+          audio: false,
+        });
+      } catch {
+        // Laptop browsers may ignore facingMode; fallback to any available camera.
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false,
+        });
+      }
+
+      cameraStreamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+      setIsCameraReady(true);
+    } catch (error) {
+      const name = error instanceof DOMException ? error.name : '';
+
+      if (name === 'NotAllowedError') {
+        showToast('error', 'Trinh duyet dang chan camera. Hay cho phep camera roi thu lai.');
+      } else if (name === 'NotFoundError') {
+        showToast('error', 'Khong tim thay camera tren laptop.');
+      } else if (name === 'NotReadableError') {
+        showToast('error', 'Camera dang duoc ung dung khac su dung.');
+      } else {
+        showToast('error', 'Khong the mo camera. Vui long cap quyen va thu lai.');
+      }
+
+      stopCameraStream();
+      setIsCapturing(false);
+    }
+  }, [stopCameraStream]);
+
+  const triggerPunch = useCallback(async () => {
+    setIsCapturing(true);
+    setIsCameraReady(false);
+    setGpsError(null);
+
+    try {
+      await getGpsLocation();
+    } catch {
+      // GPS fail vẫn cho chấm công
+    }
+
+    await startCamera();
+  }, [getGpsLocation, startCamera]);
+
+  const captureAndPunch = useCallback(async () => {
+    const video = videoRef.current;
+    if (!video || video.videoWidth === 0 || video.videoHeight === 0) {
+      showToast('error', 'Camera chưa sẵn sàng. Vui lòng thử lại');
+      return;
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    const context = canvas.getContext('2d');
+    if (!context) {
+      showToast('error', 'Không thể xử lý ảnh từ camera');
+      return;
+    }
+
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const photoData = canvas.toDataURL('image/jpeg', 0.9);
+    await submitPunch(photoData);
+  }, [submitPunch]);
+
+  const cancelCapture = useCallback(() => {
+    stopCameraStream();
+    setIsCapturing(false);
+  }, [stopCameraStream]);
+
+  useEffect(() => {
+    return () => {
+      stopCameraStream();
+    };
+  }, [stopCameraStream]);
 
   const getPunchLabel = (index: number): { label: string; icon: string; isIn: boolean } => {
     return index % 2 === 0
@@ -308,16 +400,34 @@ export default function AttendancePage() {
 
       {isCapturing && (
         <div className="mb-5 p-5 bg-primary-50 border-2 border-primary-300 border-dashed rounded-2xl text-center">
-          <span className="w-14 h-14 mx-auto flex items-center justify-center mb-3">
-            <i className="ri-camera-line text-4xl text-primary-500 animate-pulse"></i>
-          </span>
-          <p className="text-sm font-semibold text-primary-700 mb-1">Đang chụp ảnh chấm công</p>
-          <p className="text-xs text-primary-500">
-            Vui lòng chụp ảnh khuôn mặt để xác thực lần chấm công #{todayPunches.length + 1}
-          </p>
-          <p className="text-xs text-red-500 mt-2 font-medium">
+          <p className="text-sm font-semibold text-primary-700 mb-3">Chụp ảnh xác thực chấm công</p>
+          <div className="rounded-xl overflow-hidden bg-background-900 aspect-[3/4] mb-3">
+            <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+          </div>
+          {!isCameraReady && <p className="text-xs text-primary-500 mb-3">Đang khởi động camera...</p>}
+          <div className="flex items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                void captureAndPunch();
+              }}
+              disabled={!isCameraReady}
+              className="px-4 py-2 rounded-lg bg-accent-500 text-white text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <i className="ri-camera-line mr-1"></i>
+              Chụp và chấm công
+            </button>
+            <button
+              type="button"
+              onClick={cancelCapture}
+              className="px-4 py-2 rounded-lg bg-background-100 text-foreground-700 text-sm font-semibold border border-background-300"
+            >
+              Hủy
+            </button>
+          </div>
+          <p className="text-xs text-red-500 mt-3 font-medium">
             <i className="ri-error-warning-line mr-1"></i>
-            Chỉ ảnh chụp mới hợp lệ. Nếu hủy, thao tác sẽ không được ghi nhận.
+            Chỉ hỗ trợ chụp trực tiếp từ camera, không cho tải ảnh từ thư viện.
           </p>
         </div>
       )}
@@ -436,17 +546,6 @@ export default function AttendancePage() {
           )}
         </div>
       </div>
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        onChange={(e) => {
-          void handleFileChange(e);
-        }}
-        className="hidden"
-      />
 
       {toast && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] animate-[fadeInUp_0.3s_ease-out] max-w-[390px] w-[calc(100%-32px)]">

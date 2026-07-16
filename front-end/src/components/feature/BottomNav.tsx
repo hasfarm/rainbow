@@ -1,34 +1,12 @@
 import { NavLink } from 'react-router-dom';
-
-const navItems = [
-  {
-    to: '/dashboard',
-    icon: 'ri-dashboard-line',
-    label: 'Trang chủ',
-  },
-  {
-    to: '/attendance',
-    icon: 'ri-fingerprint-line',
-    label: 'Chấm công',
-  },
-  {
-    to: '/requests',
-    icon: 'ri-file-list-3-line',
-    label: 'Thông báo',
-  },
-  {
-    to: '/profile',
-    icon: 'ri-user-line',
-    label: 'Cá nhân',
-  },
-];
+import { appNavItems } from './navItems';
 
 export function BottomNav() {
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background-50 border-t border-background-200/70 md:hidden">
       <div className="mobile-container">
         <div className="flex items-center justify-around h-16 px-2">
-          {navItems.map((item) => (
+          {appNavItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useState } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthContext } from '@/hooks/useAuth';
 import {
@@ -67,9 +67,15 @@ export default function LeaveNewPage() {
   const [handoverTo, setHandoverTo] = useState('');
   const [handoverNote, setHandoverNote] = useState('');
   const [approver, setApprover] = useState('');
+  const [handoverQuery, setHandoverQuery] = useState('');
+  const [approverQuery, setApproverQuery] = useState('');
+  const [isHandoverOpen, setIsHandoverOpen] = useState(false);
+  const [isApproverOpen, setIsApproverOpen] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const handoverDropdownRef = useRef<HTMLDivElement>(null);
+  const approverDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     async function loadEmployees() {
@@ -87,13 +93,108 @@ export default function LeaveNewPage() {
   }, []);
 
   const approvers = useMemo(() => {
-    return employees.filter((item) => ['admin', 'manager', 'hr', 'accountant'].includes(item.role.toLowerCase()));
+    return employees;
   }, [employees]);
 
   const handoverCandidates = useMemo(() => {
-    const selfCode = user?.id ?? '';
-    return employees.filter((item) => item.code !== selfCode);
-  }, [employees, user?.id]);
+    const selfCode = (user?.id ?? '').trim().toLowerCase();
+    const selfName = (user?.name ?? '').trim().toLowerCase();
+
+    return employees.filter((item) => {
+      const candidateCode = item.code.trim().toLowerCase();
+      const candidateName = item.name.trim().toLowerCase();
+
+      if (selfCode !== '' && candidateCode === selfCode) {
+        return false;
+      }
+
+      return !(selfName !== '' && candidateName === selfName);
+    });
+  }, [employees, user?.id, user?.name]);
+
+  const selectedHandover = useMemo(
+    () => handoverCandidates.find((item) => item.code === handoverTo) ?? null,
+    [handoverCandidates, handoverTo]
+  );
+
+  const selectedApprover = useMemo(
+    () => approvers.find((item) => item.code === approver) ?? null,
+    [approvers, approver]
+  );
+
+  const filteredHandoverCandidates = useMemo(() => {
+    const keyword = handoverQuery.trim().toLowerCase();
+
+    if (!keyword) {
+      return handoverCandidates;
+    }
+
+    return handoverCandidates.filter((item) => {
+      const haystack = `${item.name} ${item.position} ${item.department}`.toLowerCase();
+      return haystack.includes(keyword);
+    });
+  }, [handoverCandidates, handoverQuery]);
+
+  const filteredApprovers = useMemo(() => {
+    const keyword = approverQuery.trim().toLowerCase();
+
+    if (!keyword) {
+      return approvers;
+    }
+
+    return approvers.filter((item) => {
+      const haystack = `${item.name} ${item.position} ${item.department}`.toLowerCase();
+      return haystack.includes(keyword);
+    });
+  }, [approverQuery, approvers]);
+
+  const startHourNumber = startHour === '' ? null : Number(startHour);
+  const startMinuteNumber = startMinute === '' ? null : Number(startMinute);
+  const endHourNumber = endHour === '' ? null : Number(endHour);
+
+  const isEndHourDisabled = (hour: string): boolean => {
+    if (startHourNumber === null) {
+      return false;
+    }
+
+    return Number(hour) < startHourNumber;
+  };
+
+  const isEndMinuteDisabled = (minute: string): boolean => {
+    if (startHourNumber === null || startMinuteNumber === null || endHourNumber === null) {
+      return false;
+    }
+
+    if (endHourNumber < startHourNumber) {
+      return true;
+    }
+
+    if (endHourNumber > startHourNumber) {
+      return false;
+    }
+
+    return Number(minute) < startMinuteNumber;
+  };
+
+  useEffect(() => {
+    function handleOutsideClick(event: MouseEvent) {
+      const target = event.target as Node;
+
+      if (handoverDropdownRef.current && !handoverDropdownRef.current.contains(target)) {
+        setIsHandoverOpen(false);
+      }
+
+      if (approverDropdownRef.current && !approverDropdownRef.current.contains(target)) {
+        setIsApproverOpen(false);
+      }
+    }
+
+    window.addEventListener('mousedown', handleOutsideClick);
+
+    return () => {
+      window.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, []);
 
   function validate(): boolean {
     const nextErrors: Record<string, string> = {};
@@ -112,13 +213,13 @@ export default function LeaveNewPage() {
       const startTimeValue = startHour && startMinute ? `${startHour}:${startMinute}` : '';
       const endTimeValue = endHour && endMinute ? `${endHour}:${endMinute}` : '';
 
-      if (startTimeValue && endTimeValue && startTimeValue >= endTimeValue) {
-        nextErrors.endTime = 'Gio ket thuc phai sau gio bat dau';
+      if (startTimeValue && endTimeValue && endTimeValue < startTimeValue) {
+        nextErrors.endTime = 'Den gio phai bang hoac sau Tu gio';
       }
     }
 
-    if (reason.trim().length < 10) {
-      nextErrors.reason = 'Ly do can it nhat 10 ky tu';
+    if (!reason.trim()) {
+      nextErrors.reason = 'Vui long nhap ly do';
     }
 
     setErrors(nextErrors);
@@ -266,7 +367,14 @@ export default function LeaveNewPage() {
                 <select
                   value={startHour}
                   onChange={(event) => {
-                    setStartHour(event.target.value);
+                    const nextStartHour = event.target.value;
+                    setStartHour(nextStartHour);
+
+                    if (endHour && nextStartHour && Number(endHour) < Number(nextStartHour)) {
+                      setEndHour('');
+                      setEndMinute('');
+                    }
+
                     setErrors((prev) => ({ ...prev, startTime: '', endTime: '' }));
                   }}
                   className="w-full rounded-xl border border-background-200 bg-background-50 px-2.5 py-2.5 text-sm"
@@ -280,7 +388,20 @@ export default function LeaveNewPage() {
                 <select
                   value={startMinute}
                   onChange={(event) => {
-                    setStartMinute(event.target.value);
+                    const nextStartMinute = event.target.value;
+                    setStartMinute(nextStartMinute);
+
+                    if (
+                      endHour &&
+                      startHour &&
+                      endMinute &&
+                      endHour === startHour &&
+                      nextStartMinute !== '' &&
+                      Number(endMinute) < Number(nextStartMinute)
+                    ) {
+                      setEndMinute('');
+                    }
+
                     setErrors((prev) => ({ ...prev, startTime: '', endTime: '' }));
                   }}
                   className="w-full rounded-xl border border-background-200 bg-background-50 px-2.5 py-2.5 text-sm"
@@ -299,14 +420,29 @@ export default function LeaveNewPage() {
                 <select
                   value={endHour}
                   onChange={(event) => {
-                    setEndHour(event.target.value);
+                    const nextEndHour = event.target.value;
+                    setEndHour(nextEndHour);
+
+                    if (
+                      nextEndHour &&
+                      startHour &&
+                      endMinute &&
+                      startMinute &&
+                      Number(nextEndHour) === Number(startHour) &&
+                      Number(endMinute) < Number(startMinute)
+                    ) {
+                      setEndMinute('');
+                    }
+
                     setErrors((prev) => ({ ...prev, endTime: '' }));
                   }}
                   className="w-full rounded-xl border border-background-200 bg-background-50 px-2.5 py-2.5 text-sm"
                 >
                   <option value="">Gio</option>
                   {HOUR_OPTIONS.map((hour) => (
-                    <option key={hour} value={hour}>{hour}</option>
+                    <option key={hour} value={hour} disabled={isEndHourDisabled(hour)}>
+                      {hour}
+                    </option>
                   ))}
                 </select>
                 <span className="text-sm text-foreground-500">:</span>
@@ -320,7 +456,9 @@ export default function LeaveNewPage() {
                 >
                   <option value="">Phut</option>
                   {MINUTE_OPTIONS.map((minute) => (
-                    <option key={minute} value={minute}>{minute}</option>
+                    <option key={minute} value={minute} disabled={isEndMinuteDisabled(minute)}>
+                      {minute}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -329,34 +467,129 @@ export default function LeaveNewPage() {
           </div>
         )}
 
-        <div>
+        <div ref={handoverDropdownRef} className="relative">
           <label className="block text-sm font-semibold text-foreground-900 mb-1">Nguoi ban giao</label>
-          <select
-            value={handoverTo}
-            onChange={(event) => setHandoverTo(event.target.value)}
+          <button
+            type="button"
             disabled={loadingEmployees}
-            className="w-full rounded-xl border border-background-200 bg-background-50 px-3 py-2.5 text-sm"
+            onClick={() => {
+              setIsHandoverOpen((prev) => !prev);
+              setIsApproverOpen(false);
+            }}
+            className="w-full rounded-xl border border-background-200 bg-background-50 px-3 py-2.5 text-sm text-left flex items-center justify-between disabled:opacity-60"
           >
-            <option value="">Khong chon</option>
-            {handoverCandidates.map((item) => (
-              <option key={item.code} value={item.code}>{item.name} - {item.position}</option>
-            ))}
-          </select>
+            <span className={selectedHandover ? 'text-foreground-900' : 'text-foreground-400'}>
+              {selectedHandover ? `${selectedHandover.name} - ${selectedHandover.position}` : 'Khong chon'}
+            </span>
+            <i className={`ri-arrow-down-s-line text-base text-foreground-500 transition-transform ${isHandoverOpen ? 'rotate-180' : ''}`}></i>
+          </button>
+
+          {isHandoverOpen && !loadingEmployees && (
+            <div className="absolute z-30 mt-1 w-full rounded-xl border border-background-200 bg-background-50 shadow-lg p-2">
+              <input
+                value={handoverQuery}
+                onChange={(event) => setHandoverQuery(event.target.value)}
+                placeholder="Tim nguoi ban giao..."
+                className="w-full rounded-lg border border-background-200 bg-background-50 px-3 py-2 text-sm mb-2"
+              />
+              <div className="max-h-48 overflow-y-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHandoverTo('');
+                    setHandoverQuery('');
+                    setIsHandoverOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-background-100"
+                >
+                  Khong chon
+                </button>
+                {filteredHandoverCandidates.map((item) => (
+                  <button
+                    key={item.code}
+                    type="button"
+                    onClick={() => {
+                      setHandoverTo(item.code);
+                      setHandoverQuery('');
+                      setIsHandoverOpen(false);
+                    }}
+                    className={`w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-background-100 ${
+                      handoverTo === item.code ? 'bg-accent-50 text-accent-700' : ''
+                    }`}
+                  >
+                    <p className="font-medium text-foreground-900">{item.name}</p>
+                    <p className="text-xs text-foreground-500">{item.position} - {item.department}</p>
+                  </button>
+                ))}
+                {filteredHandoverCandidates.length === 0 && (
+                  <p className="px-3 py-2 text-xs text-foreground-500">Khong tim thay nguoi ban giao phu hop</p>
+                )}
+              </div>
+            </div>
+          )}
+          <p className="mt-1 text-[11px] text-foreground-500">Nguoi ban giao khong duoc trung ten voi nguoi lam phieu.</p>
         </div>
 
-        <div>
+        <div ref={approverDropdownRef} className="relative">
           <label className="block text-sm font-semibold text-foreground-900 mb-1">Nguoi duyet</label>
-          <select
-            value={approver}
-            onChange={(event) => setApprover(event.target.value)}
+          <button
+            type="button"
             disabled={loadingEmployees}
-            className="w-full rounded-xl border border-background-200 bg-background-50 px-3 py-2.5 text-sm"
+            onClick={() => {
+              setIsApproverOpen((prev) => !prev);
+              setIsHandoverOpen(false);
+            }}
+            className="w-full rounded-xl border border-background-200 bg-background-50 px-3 py-2.5 text-sm text-left flex items-center justify-between disabled:opacity-60"
           >
-            <option value="">Khong chon</option>
-            {approvers.map((item) => (
-              <option key={item.code} value={item.code}>{item.name} - {item.position}</option>
-            ))}
-          </select>
+            <span className={selectedApprover ? 'text-foreground-900' : 'text-foreground-400'}>
+              {selectedApprover ? `${selectedApprover.name} - ${selectedApprover.position}` : 'Khong chon'}
+            </span>
+            <i className={`ri-arrow-down-s-line text-base text-foreground-500 transition-transform ${isApproverOpen ? 'rotate-180' : ''}`}></i>
+          </button>
+
+          {isApproverOpen && !loadingEmployees && (
+            <div className="absolute z-30 mt-1 w-full rounded-xl border border-background-200 bg-background-50 shadow-lg p-2">
+              <input
+                value={approverQuery}
+                onChange={(event) => setApproverQuery(event.target.value)}
+                placeholder="Tim nguoi duyet..."
+                className="w-full rounded-lg border border-background-200 bg-background-50 px-3 py-2 text-sm mb-2"
+              />
+              <div className="max-h-48 overflow-y-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setApprover('');
+                    setApproverQuery('');
+                    setIsApproverOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-background-100"
+                >
+                  Khong chon
+                </button>
+                {filteredApprovers.map((item) => (
+                  <button
+                    key={item.code}
+                    type="button"
+                    onClick={() => {
+                      setApprover(item.code);
+                      setApproverQuery('');
+                      setIsApproverOpen(false);
+                    }}
+                    className={`w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-background-100 ${
+                      approver === item.code ? 'bg-accent-50 text-accent-700' : ''
+                    }`}
+                  >
+                    <p className="font-medium text-foreground-900">{item.name}</p>
+                    <p className="text-xs text-foreground-500">{item.position} - {item.department}</p>
+                  </button>
+                ))}
+                {filteredApprovers.length === 0 && (
+                  <p className="px-3 py-2 text-xs text-foreground-500">Khong tim thay nguoi duyet phu hop</p>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         <div>

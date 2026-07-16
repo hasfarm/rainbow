@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useContext, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { AuthContext } from '@/hooks/useAuth';
 
@@ -56,8 +56,8 @@ export default function LoginPage() {
           <div className="absolute top-0 right-0 w-40 h-40 bg-accent-500/20 rounded-full -translate-y-1/2 translate-x-1/4"></div>
           <div className="absolute bottom-0 left-0 w-28 h-28 bg-secondary-500/20 rounded-full translate-y-1/3 -translate-x-1/3"></div>
           <div className="relative z-10 text-center">
-            <div className="w-16 h-16 mx-auto mb-4 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
-              <i className="ri-fingerprint-line text-3xl text-white"></i>
+            <div className="w-16 h-16 mx-auto mb-4 bg-white/15 backdrop-blur-sm rounded-2xl flex items-center justify-center p-2">
+              <img src="/rainbow_logo.png" alt="Rainbow Logo" className="w-full h-full object-contain" />
             </div>
             <h1 className="text-2xl font-heading font-bold text-white mb-1">HRM App</h1>
             <p className="text-sm text-white/80">Quản lý chấm công thông minh</p>

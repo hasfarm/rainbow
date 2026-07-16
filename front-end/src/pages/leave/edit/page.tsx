@@ -109,8 +109,8 @@ export default function LeaveEditPage() {
       }
     }
 
-    if (reason.trim().length < 10) {
-      nextErrors.reason = 'Ly do can it nhat 10 ky tu';
+    if (!reason.trim()) {
+      nextErrors.reason = 'Vui long nhap ly do';
     }
 
     setErrors(nextErrors);

@@ -12,6 +12,7 @@ const defaultItems: AdminSidebarItem[] = [
   { label: 'Attendance', icon: 'ri-fingerprint-line', to: '/attendance' },
   { label: 'Employee', icon: 'ri-team-line', to: '/employees' },
   { label: 'Leave', icon: 'ri-calendar-check-line', to: '/leave' },
+  { label: 'Leave Remain', icon: 'ri-calendar-todo-line', to: '/leave-remain' },
   { label: 'Payroll', icon: 'ri-bank-card-line', to: '/payslip' },
 ];
 

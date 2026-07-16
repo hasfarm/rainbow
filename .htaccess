@@ -1,5 +1,8 @@
 RewriteEngine On
 
+# Force admin route to front-end SPA. Without this, Apache serves /admin folder directly.
+RewriteRule ^admin/?$ /front-end/out/admin [R=302,L]
+
 # Serve real files/folders as-is.
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d

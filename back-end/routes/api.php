@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\LeaveController;
+use App\Http\Controllers\Api\LeaveRemainController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -37,5 +38,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::apiResource('leaves', LeaveController::class)->parameters([
         'leaves' => 'id',
+    ]);
+
+    Route::apiResource('leaves-remain', LeaveRemainController::class)->parameters([
+        'leaves-remain' => 'id',
     ]);
 });
