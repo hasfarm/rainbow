@@ -1,8 +1,7 @@
-import { useState, useContext, useRef, useEffect } from 'react';
+import { useState, useContext, useRef, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthContext } from '@/hooks/useAuth';
 import { mockTimeOffs, type TimeOffType, type TimeOffSubType, type TimeOffRecord, timeOffTypeLabels, timeOffTypeIcons, timeOffTypeColors, timeOffSubTypeLabels, timeOffSubTypeIcons } from '@/mocks/timeoff';
-import { mockUsers } from '@/mocks/users';
 import { getWorkStartTime, getWorkEndTime, getWorkHoursLabel, WAREHOUSE_DEPT } from '@/utils/workRules';
 import { format } from 'date-fns';
 
@@ -20,6 +19,86 @@ const womenSubTypes: { subType: TimeOffSubType; icon: string; label: string }[] 
 const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
 const MINUTES = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
 
+type ApproverOption = {
+  code: string;
+  name: string;
+  role: string;
+  department: string;
+  position: string;
+  avatar: string | null;
+};
+
+type UserApi = {
+  employee_code: string | null;
+  name: string;
+  role: string | null;
+  department: string | null;
+  position: string | null;
+  avatar?: string | null;
+};
+
+function getAuthHeaders(): HeadersInit {
+  const token = localStorage.getItem('hrm_auth_token');
+
+  return {
+    Accept: 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+async function createTimeoffRequest(payload: {
+  type: TimeOffType;
+  sub_type: TimeOffSubType | null;
+  work_date: string;
+  expected_time: string | null;
+  reason: string;
+  approver_code: string;
+}): Promise<void> {
+  const response = await fetch('/back-end/public/api/timeoffs', {
+    method: 'POST',
+    headers: {
+      ...getAuthHeaders(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const body = (await response.json()) as { message?: string; errors?: Record<string, string[]> };
+    const firstError = body.errors ? Object.values(body.errors)[0]?.[0] : null;
+    throw new Error(firstError ?? body.message ?? 'Khong the gui don di tre/ve som');
+  }
+}
+
+async function fetchApproverUsers(): Promise<ApproverOption[]> {
+  const url = new URL('/back-end/public/api/users', window.location.origin);
+  url.searchParams.set('per_page', '200');
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: getAuthHeaders(),
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Request failed with status ${response.status}`);
+  }
+
+  const payload = (await response.json()) as { data?: UserApi[] };
+  const records = Array.isArray(payload.data) ? payload.data : [];
+
+  return records
+    .filter((item) => !!item.employee_code)
+    .map((item) => ({
+      code: item.employee_code as string,
+      name: item.name,
+      role: item.role ?? '',
+      department: item.department ?? '',
+      position: item.position ?? '',
+      avatar: item.avatar ?? null,
+    }));
+}
+
 export default function TimeOffNewPage() {
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -31,9 +110,13 @@ export default function TimeOffNewPage() {
   const [expectedMinute, setExpectedMinute] = useState('');
   const [reason, setReason] = useState('');
   const [selectedApproverId, setSelectedApproverId] = useState('');
+  const [approverQuery, setApproverQuery] = useState('');
   const [isApproverDropdownOpen, setIsApproverDropdownOpen] = useState(false);
+  const [approvers, setApprovers] = useState<ApproverOption[]>([]);
+  const [loadingApprovers, setLoadingApprovers] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const approverDropdownRef = useRef<HTMLDivElement>(null);
@@ -44,6 +127,10 @@ export default function TimeOffNewPage() {
   const workEnd = getWorkEndTime(department);
   const workHoursLabel = getWorkHoursLabel(department);
   const expectedTime = expectedHour && expectedMinute ? `${expectedHour}:${expectedMinute}` : '';
+  const [workStartHour, workStartMinute] = workStart.split(':').map(Number);
+  const [workEndHour, workEndMinute] = workEnd.split(':').map(Number);
+  const workStartTotalMin = workStartHour * 60 + workStartMinute;
+  const workEndTotalMin = workEndHour * 60 + workEndMinute;
 
   // Effective mode for women_policy: derive late/early from subType
   const effectiveMode = selectedType === 'women_policy' ? womenSubType : (selectedType === 'late_arrival' ? 'late' : selectedType === 'early_departure' ? 'early' : null);
@@ -51,12 +138,89 @@ export default function TimeOffNewPage() {
   // Whether to show time picker: for late_arrival / early_departure always, for women_policy only after subType selected
   const showTimePicker = selectedType === 'late_arrival' || selectedType === 'early_departure' || (selectedType === 'women_policy' && womenSubType !== null);
 
-  const approversList = mockUsers.filter(
-    (u) => ['manager', 'hr', 'warehouse_manager', 'deputy_warehouse'].includes(u.role)
-  );
-  const selectedApprover = approversList.find((u) => u.id === selectedApproverId);
+  const approversList = useMemo(() => {
+    const selfId = (user?.id ?? '').trim().toLowerCase();
+    const selfName = (user?.name ?? '').trim().toLowerCase();
+
+    return approvers.filter((u) => {
+      const candidateId = u.code.trim().toLowerCase();
+      const candidateName = u.name.trim().toLowerCase();
+
+      if (selfId !== '' && candidateId === selfId) {
+        return false;
+      }
+
+      return !(selfName !== '' && candidateName === selfName);
+    });
+  }, [approvers, user?.id, user?.name]);
+
+  const filteredApprovers = useMemo(() => {
+    const keyword = approverQuery.trim().toLowerCase();
+
+    if (!keyword) {
+      return approversList;
+    }
+
+    return approversList.filter((person) => {
+      const haystack = `${person.name} ${person.position} ${person.department}`.toLowerCase();
+      return haystack.includes(keyword);
+    });
+  }, [approverQuery, approversList]);
+
+  const selectedApprover = approversList.find((u) => u.code === selectedApproverId);
+
+  const expectedHourNumber = expectedHour === '' ? null : Number(expectedHour);
+
+  const isExpectedHourDisabled = (hour: string): boolean => {
+    const value = Number(hour);
+
+    if (effectiveMode === 'late') {
+      return value < workStartHour;
+    }
+
+    if (effectiveMode === 'early') {
+      return value < workStartHour || value >= workEndHour;
+    }
+
+    return false;
+  };
+
+  const isExpectedMinuteDisabled = (minute: string, hourValue: number | null = expectedHourNumber): boolean => {
+    if (effectiveMode === null || hourValue === null) {
+      return false;
+    }
+
+    const minuteValue = Number(minute);
+
+    if (effectiveMode === 'late' && hourValue === workStartHour) {
+      return minuteValue <= workStartMinute;
+    }
+
+    if (effectiveMode === 'early') {
+      if (hourValue === workStartHour) {
+        return minuteValue <= workStartMinute;
+      }
+    }
+
+    return false;
+  };
 
   const getMinDate = () => format(new Date(), 'yyyy-MM-dd');
+
+  useEffect(() => {
+    async function loadApprovers() {
+      try {
+        const records = await fetchApproverUsers();
+        setApprovers(records);
+      } catch {
+        setApprovers([]);
+      } finally {
+        setLoadingApprovers(false);
+      }
+    }
+
+    void loadApprovers();
+  }, []);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -121,14 +285,14 @@ export default function TimeOffNewPage() {
         const [eh, em] = expectedTime.split(':').map(Number);
         const expectedTotalMin = eh * 60 + em;
         if (effectiveMode === 'late') {
-          const [sh, sm] = workStart.split(':').map(Number);
-          if (expectedTotalMin <= sh * 60 + sm) {
+          if (expectedTotalMin <= workStartTotalMin) {
             newErrors.time = 'Giờ check-in dự kiến phải sau giờ vào làm';
           }
         }
         if (effectiveMode === 'early') {
-          const [eh2, em2] = workEnd.split(':').map(Number);
-          if (expectedTotalMin >= eh2 * 60 + em2) {
+          if (expectedTotalMin <= workStartTotalMin) {
+            newErrors.time = 'Giờ check-out dự kiến phải sau giờ bắt đầu làm';
+          } else if (expectedTotalMin >= workEndTotalMin) {
             newErrors.time = 'Giờ check-out dự kiến phải trước giờ tan làm';
           }
         }
@@ -146,7 +310,22 @@ export default function TimeOffNewPage() {
     if (!validate() || !user) return;
 
     setIsSubmitting(true);
-    await new Promise((r) => setTimeout(r, 800));
+    setSubmitError(null);
+
+    try {
+      await createTimeoffRequest({
+        type: selectedType as TimeOffType,
+        sub_type: selectedType === 'women_policy' ? womenSubType : null,
+        work_date: date,
+        expected_time: showTimePicker ? expectedTime : null,
+        reason: reason.trim(),
+        approver_code: selectedApproverId,
+      });
+    } catch (error) {
+      setIsSubmitting(false);
+      setSubmitError(error instanceof Error ? error.message : 'Khong the gui don di tre/ve som');
+      return;
+    }
 
     const newTimeOff: TimeOffRecord = {
       id: `TO-${String(mockTimeOffs.length + 1).padStart(3, '0')}`,
@@ -160,7 +339,7 @@ export default function TimeOffNewPage() {
       createdAt: new Date().toISOString(),
       approvedBy: null,
       rejectedReason: null,
-      approver: selectedApprover?.name ?? null,
+      approver: selectedApprover?.code ?? null,
     };
 
     mockTimeOffs.unshift(newTimeOff);
@@ -353,14 +532,28 @@ export default function TimeOffNewPage() {
             <div className="relative flex-1">
               <select
                 value={expectedHour}
-                onChange={(e) => { setExpectedHour(e.target.value); setErrors((prev) => ({ ...prev, time: '' })); }}
+                onChange={(e) => {
+                  const nextHour = e.target.value;
+                  setExpectedHour(nextHour);
+
+                  if (nextHour === '') {
+                    setExpectedMinute('');
+                  } else {
+                    const nextHourNumber = Number(nextHour);
+                    if (expectedMinute !== '' && isExpectedMinuteDisabled(expectedMinute, nextHourNumber)) {
+                      setExpectedMinute('');
+                    }
+                  }
+
+                  setErrors((prev) => ({ ...prev, time: '' }));
+                }}
                 className={`w-full px-3 py-2.5 text-sm bg-background-50 border rounded-lg outline-none appearance-none cursor-pointer transition-colors focus:border-primary-400 focus:ring-1 focus:ring-primary-400/50 ${
                   errors.time && !expectedHour ? 'border-primary-400' : 'border-background-200/70'
                 }`}
               >
                 <option value="">Giờ</option>
                 {HOURS.map((h) => (
-                  <option key={h} value={h}>{h}</option>
+                  <option key={h} value={h} disabled={isExpectedHourDisabled(h)}>{h}</option>
                 ))}
               </select>
               <span className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center pointer-events-none">
@@ -378,7 +571,7 @@ export default function TimeOffNewPage() {
               >
                 <option value="">Phút</option>
                 {MINUTES.map((m) => (
-                  <option key={m} value={m}>{m}</option>
+                  <option key={m} value={m} disabled={isExpectedMinuteDisabled(m)}>{m}</option>
                 ))}
               </select>
               <span className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center pointer-events-none">
@@ -427,7 +620,13 @@ export default function TimeOffNewPage() {
 
           <button
             type="button"
-            onClick={() => setIsApproverDropdownOpen(!isApproverDropdownOpen)}
+            onClick={() => {
+              setIsApproverDropdownOpen(!isApproverDropdownOpen);
+              if (!isApproverDropdownOpen) {
+                setApproverQuery('');
+              }
+            }}
+            disabled={loadingApprovers}
             className={`w-full flex items-center gap-3 px-4 py-3 bg-background-50 border rounded-xl text-left transition-all duration-200 cursor-pointer ${
               isApproverDropdownOpen
                 ? 'border-primary-400 ring-2 ring-primary-400/30'
@@ -451,7 +650,7 @@ export default function TimeOffNewPage() {
                 <span className="w-9 h-9 bg-background-100 rounded-lg flex items-center justify-center shrink-0">
                   <i className="ri-user-received-line text-base text-foreground-400"></i>
                 </span>
-                <span className="text-sm text-foreground-400 flex-1">Chọn quản lý / admin duyệt...</span>
+                <span className="text-sm text-foreground-400 flex-1">{loadingApprovers ? 'Đang tải danh sách người duyệt...' : 'Chọn quản lý / admin duyệt...'}</span>
               </>
             )}
             <span className={`w-5 h-5 flex items-center justify-center shrink-0 transition-transform duration-200 ${isApproverDropdownOpen ? 'rotate-180' : ''}`}>
@@ -461,35 +660,54 @@ export default function TimeOffNewPage() {
 
           {isApproverDropdownOpen && (
             <div className="absolute left-4 right-4 mt-1.5 bg-background-50 border border-background-200/70 rounded-xl shadow-lg z-40 max-h-56 overflow-y-auto animate-[fadeInUp_0.2s_ease-out]">
-              {approversList.map((person) => (
+              <div className="p-2 border-b border-background-200/70 sticky top-0 bg-background-50 z-10">
+                <input
+                  type="text"
+                  value={approverQuery}
+                  onChange={(event) => setApproverQuery(event.target.value)}
+                  placeholder="Tìm người duyệt theo tên/chức vụ/phòng ban..."
+                  className="w-full rounded-lg border border-background-200/70 bg-white px-3 py-2 text-sm outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-400/50"
+                />
+              </div>
+
+              {filteredApprovers.map((person) => (
                 <button
-                  key={person.id}
+                  key={person.code}
                   type="button"
                   onClick={() => {
-                    setSelectedApproverId(person.id);
+                    setSelectedApproverId(person.code);
                     setIsApproverDropdownOpen(false);
+                    setApproverQuery('');
                     setErrors((prev) => ({ ...prev, approver: '' }));
                   }}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors cursor-pointer mb-0.5 ${
-                    selectedApproverId === person.id ? 'bg-primary-50' : 'hover:bg-background-100'
+                    selectedApproverId === person.code ? 'bg-primary-50' : 'hover:bg-background-100'
                   }`}
                 >
                   <span className="w-8 h-8 bg-background-100 rounded-full flex items-center justify-center shrink-0 overflow-hidden">
-                    <img src={person.avatar} alt={person.name} className="w-full h-full object-cover" />
+                    {person.avatar ? (
+                      <img src={person.avatar} alt={person.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <i className="ri-user-line text-foreground-400"></i>
+                    )}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className={`text-xs font-semibold leading-tight ${selectedApproverId === person.id ? 'text-primary-700' : 'text-foreground-950'}`}>
+                    <p className={`text-xs font-semibold leading-tight ${selectedApproverId === person.code ? 'text-primary-700' : 'text-foreground-950'}`}>
                       {person.name}
                     </p>
                     <p className="text-[10px] text-foreground-500 leading-tight">{person.position} — {person.department}</p>
                   </div>
-                  {selectedApproverId === person.id && (
+                  {selectedApproverId === person.code && (
                     <span className="w-5 h-5 flex items-center justify-center shrink-0">
                       <i className="ri-check-line text-primary-500"></i>
                     </span>
                   )}
                 </button>
               ))}
+
+              {filteredApprovers.length === 0 && (
+                <p className="px-3 py-3 text-xs text-foreground-500">Không tìm thấy người duyệt phù hợp</p>
+              )}
             </div>
           )}
         </div>
@@ -525,6 +743,12 @@ export default function TimeOffNewPage() {
       )}
 
       {/* ─────── Submit ─────── */}
+      {submitError && (
+        <div className="mb-3 rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-xs text-primary-700">
+          {submitError}
+        </div>
+      )}
+
       <button
         type="button"
         onClick={handleSubmit}

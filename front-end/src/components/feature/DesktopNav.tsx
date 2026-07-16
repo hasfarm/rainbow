@@ -1,7 +1,10 @@
 import { NavLink } from 'react-router-dom';
 import { appNavItems } from './navItems';
+import { useUnreadNotifications } from '@/hooks/useUnreadNotifications';
 
 export function DesktopNav() {
+  const unreadCount = useUnreadNotifications();
+
   return (
     <nav className="hidden md:block sticky top-0 z-40 border-b border-background-200/80 bg-background-50/95 backdrop-blur">
       <div className="mx-auto w-full max-w-[1200px] px-5 lg:px-8">
@@ -27,6 +30,11 @@ export function DesktopNav() {
                       <i className={item.icon}></i>
                     </span>
                     <span>{item.label}</span>
+                    {item.to === '/requests' && unreadCount > 0 && (
+                      <span className="inline-flex min-w-[18px] h-[18px] items-center justify-center rounded-full bg-primary-500 px-1 text-[10px] font-bold text-white">
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </span>
+                    )}
                     {isActive && (
                       <span className="absolute inset-x-3 -bottom-[9px] h-0.5 rounded-full bg-primary-500" />
                     )}

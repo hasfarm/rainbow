@@ -9,6 +9,7 @@ export type LeaveType =
   | 'business_trip';
 
 export type LeaveStatus = 'pending' | 'approved' | 'rejected';
+export type LeaveScope = 'owner' | 'approver';
 
 export interface LeaveRecord {
   id: string;
@@ -77,10 +78,16 @@ function normalizeLeaveRecord(input: LeaveRecord): LeaveRecord {
   };
 }
 
-export async function fetchLeaves(status?: LeaveStatus | 'all'): Promise<LeaveRecord[]> {
+export async function fetchLeaves(
+  status?: LeaveStatus | 'all',
+  scope: LeaveScope = 'owner'
+): Promise<LeaveRecord[]> {
   const url = new URL('/back-end/public/api/leaves', window.location.origin);
   if (status && status !== 'all') {
     url.searchParams.set('status', status);
+  }
+  if (scope !== 'owner') {
+    url.searchParams.set('scope', scope);
   }
 
   const response = await fetch(url.toString(), {
@@ -183,6 +190,29 @@ export async function deleteLeave(id: string): Promise<void> {
     const body = (await response.json()) as { message?: string };
     throw new Error(body.message ?? 'Không thể xoá đơn nghỉ phép');
   }
+}
+
+export async function decideLeave(
+  id: string,
+  payload: { decision: 'approved' | 'rejected'; comment: string }
+): Promise<LeaveRecord> {
+  const response = await fetch(`/back-end/public/api/leaves/${id}/decision`, {
+    method: 'PATCH',
+    headers: getAuthHeaders(true),
+    body: JSON.stringify({
+      decision: payload.decision,
+      comment: payload.comment,
+    }),
+  });
+
+  const body = (await response.json()) as { message?: string; errors?: Record<string, string[]>; data?: LeaveRecord };
+
+  if (!response.ok || !body.data) {
+    const firstError = body.errors ? Object.values(body.errors)[0]?.[0] : null;
+    throw new Error(firstError ?? body.message ?? 'Khong the duyet don nghi phep');
+  }
+
+  return normalizeLeaveRecord(body.data);
 }
 
 export async function fetchLeaveEmployees(): Promise<EmployeeOption[]> {

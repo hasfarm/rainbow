@@ -30,10 +30,16 @@ import { AppLayout } from "../components/feature/AppLayout";
 import { ProtectedRoute } from "../components/feature/ProtectedRoute";
 import { AuthContext } from "@/hooks/useAuth";
 
+const isAdminBasePath = __BASE_PATH__.replace(/\/+$/, "") === "/admin";
+
 function LandingPage() {
   const { user } = useContext(AuthContext);
   const role = (user?.role ?? "").toLowerCase();
   const isAdmin = role === "admin";
+
+  if (isAdminBasePath) {
+    return <AdminPage />;
+  }
 
   return isAdmin ? <DashboardPage /> : <HomePage />;
 }

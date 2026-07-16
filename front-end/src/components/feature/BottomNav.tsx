@@ -1,7 +1,10 @@
 import { NavLink } from 'react-router-dom';
 import { appNavItems } from './navItems';
+import { useUnreadNotifications } from '@/hooks/useUnreadNotifications';
 
 export function BottomNav() {
+  const unreadCount = useUnreadNotifications();
+
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background-50 border-t border-background-200/70 md:hidden">
       <div className="mobile-container">
@@ -20,6 +23,11 @@ export function BottomNav() {
             >
               {({ isActive }) => (
                 <>
+                  {item.to === '/requests' && unreadCount > 0 && (
+                    <span className="absolute right-1/2 top-2 translate-x-5 inline-flex min-w-[16px] h-4 items-center justify-center rounded-full bg-primary-500 px-1 text-[10px] font-bold text-white">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
                   {isActive && (
                     <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-primary-500 rounded-full" />
                   )}

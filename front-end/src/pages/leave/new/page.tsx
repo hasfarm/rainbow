@@ -18,9 +18,6 @@ const leaveTypes: LeaveType[] = [
   'marriage_leave',
   'bereavement_leave',
   'business_trip',
-  'women_policy',
-  'late_arrival',
-  'early_departure',
 ];
 
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, '0'));

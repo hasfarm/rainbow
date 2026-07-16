@@ -57,6 +57,32 @@ function getAuthHeaders(): HeadersInit {
   };
 }
 
+async function createOvertimeRequest(payload: {
+  work_date: string;
+  start_time: string;
+  end_time: string;
+  hours: number;
+  overtime_type: OvertimeType;
+  reason: string;
+  approver_1_code: string;
+  approver_2_code: string;
+}): Promise<void> {
+  const response = await fetch('/back-end/public/api/overtimes', {
+    method: 'POST',
+    headers: {
+      ...getAuthHeaders(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const body = (await response.json()) as { message?: string; errors?: Record<string, string[]> };
+    const firstError = body.errors ? Object.values(body.errors)[0]?.[0] : null;
+    throw new Error(firstError ?? body.message ?? 'Khong the gui phieu tang ca');
+  }
+}
+
 export default function OvertimeNewPage() {
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -78,6 +104,7 @@ export default function OvertimeNewPage() {
   const [isDropdown2Open, setIsDropdown2Open] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -278,9 +305,34 @@ export default function OvertimeNewPage() {
   const handleSubmit = async () => {
     if (!validate() || !user) return;
 
-    setIsSubmitting(true);
+    if (!selectedApprover?.employeeCode || !selectedApprover2?.employeeCode) {
+      setErrors((prev) => ({
+        ...prev,
+        approver: prev.approver || 'Vui lòng chọn người duyệt cấp 1',
+        approver2: prev.approver2 || 'Vui lòng chọn người duyệt cấp 2',
+      }));
+      return;
+    }
 
-    await new Promise((r) => setTimeout(r, 800));
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      await createOvertimeRequest({
+        work_date: date,
+        start_time: startTime,
+        end_time: endTime,
+        hours: rawHours,
+        overtime_type: overtimeType,
+        reason: reason.trim(),
+        approver_1_code: selectedApprover.employeeCode,
+        approver_2_code: selectedApprover2.employeeCode,
+      });
+    } catch (error) {
+      setIsSubmitting(false);
+      setSubmitError(error instanceof Error ? error.message : 'Khong the gui phieu tang ca');
+      return;
+    }
 
     const newOvertime: OvertimeRecord = {
       id: `OT-${String(mockOvertimes.length + 1).padStart(3, '0')}`,
@@ -292,9 +344,9 @@ export default function OvertimeNewPage() {
       overtimeType,
       reason: reason.trim(),
       status: 'pending',
-      approverId: selectedApproverId,
+      approverId: selectedApprover.employeeCode,
       approverName: selectedApprover?.name ?? null,
-      approver2Id: selectedApprover2Id,
+      approver2Id: selectedApprover2.employeeCode,
       approver2Name: selectedApprover2?.name ?? null,
       createdAt: new Date().toISOString(),
       rejectReason: null,
@@ -742,6 +794,12 @@ export default function OvertimeNewPage() {
       </div>
 
       {/* Submit button */}
+      {submitError && (
+        <div className="mb-3 rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-xs text-primary-700">
+          {submitError}
+        </div>
+      )}
+
       <button
         type="button"
         onClick={handleSubmit}

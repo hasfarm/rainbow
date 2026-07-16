@@ -4,6 +4,9 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\LeaveRemainController;
+use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\OvertimeController;
+use App\Http\Controllers\Api\TimeoffController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -39,8 +42,22 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('leaves', LeaveController::class)->parameters([
         'leaves' => 'id',
     ]);
+    Route::patch('/leaves/{id}/decision', [LeaveController::class, 'decide']);
 
     Route::apiResource('leaves-remain', LeaveRemainController::class)->parameters([
         'leaves-remain' => 'id',
     ]);
+
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::patch('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+
+    Route::apiResource('timeoffs', TimeoffController::class)
+        ->only(['index', 'store'])
+        ->parameters(['timeoffs' => 'id']);
+    Route::patch('/timeoffs/{id}/decision', [TimeoffController::class, 'decide']);
+
+    Route::apiResource('overtimes', OvertimeController::class)
+        ->only(['index', 'store', 'show'])
+        ->parameters(['overtimes' => 'id']);
+    Route::patch('/overtimes/{id}/decision', [OvertimeController::class, 'decide']);
 });

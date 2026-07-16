@@ -1,9 +1,9 @@
-import { type Notification, priorityLabels, priorityColors } from '@/mocks/notifications';
+import { type NotificationItem, priorityLabels, priorityColors } from '../api';
 import { format, parseISO } from 'date-fns';
 import { vi } from 'date-fns/locale';
 
 interface NotificationCardProps {
-  notification: Notification;
+  notification: NotificationItem;
 }
 
 function formatTime(dateStr: string): string {
@@ -22,8 +22,14 @@ function formatTime(dateStr: string): string {
   return format(date, 'dd/MM/yyyy', { locale: vi });
 }
 
+const statusConfig: Record<string, { label: string; className: string }> = {
+  pending: { label: 'Chờ duyệt', className: 'bg-yellow-100 text-yellow-700 border border-yellow-200' },
+  approved: { label: 'Đã duyệt', className: 'bg-green-100 text-green-700 border border-green-200' },
+  rejected: { label: 'Từ chối', className: 'bg-red-100 text-red-700 border border-red-200' },
+};
+
 export function NotificationCard({ notification }: NotificationCardProps) {
-  const { type, title, content, senderName, senderPosition, date, isRead, priority } = notification;
+  const { type, title, content, senderName, senderPosition, date, isRead, priority, relatedStatus } = notification;
 
   return (
     <div className={`relative bg-background-50 border rounded-xl p-4 transition-colors duration-200 cursor-pointer ${
@@ -75,7 +81,11 @@ export function NotificationCard({ notification }: NotificationCardProps) {
         /* Private message card */
         <div className="flex items-start gap-3">
           <div className="w-10 h-10 rounded-full overflow-hidden bg-background-200 flex items-center justify-center shrink-0">
-            <img src={notification.senderAvatar} alt={senderName} className="w-full h-full object-cover" />
+            {notification.senderAvatar ? (
+              <img src={notification.senderAvatar} alt={senderName} className="w-full h-full object-cover" />
+            ) : (
+              <i className="ri-user-line text-foreground-400"></i>
+            )}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between mb-1">
@@ -95,6 +105,14 @@ export function NotificationCard({ notification }: NotificationCardProps) {
             <p className={`text-xs leading-relaxed line-clamp-2 ${isRead ? 'text-foreground-500' : 'text-foreground-700'}`}>
               {content}
             </p>
+            {relatedStatus && statusConfig[relatedStatus] && (
+              <div className="mt-2">
+                <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusConfig[relatedStatus].className}`}>
+                  <i className={relatedStatus === 'approved' ? 'ri-checkbox-circle-line' : relatedStatus === 'rejected' ? 'ri-close-circle-line' : 'ri-time-line'}></i>
+                  {statusConfig[relatedStatus].label}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       )}

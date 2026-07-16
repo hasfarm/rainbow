@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useContext, useEffect, useMemo, useState } from 'react';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { format, parseISO } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import {
+  decideLeave,
   deleteLeave,
   fetchLeaveById,
   fetchLeaveEmployees,
@@ -15,6 +16,7 @@ import {
   type LeaveRecord,
 } from '../api';
 import { getLunchDeductMinutes, getLunchBreakLabel, getDailyWorkMinutes, formatDaysFromMinutes } from '@/utils/workRules';
+import { AuthContext } from '@/hooks/useAuth';
 
 function calcDuration(startDate: string, endDate: string, startTime: string | null, endTime: string | null, department: string) {
   if (startTime && endTime) {
@@ -55,12 +57,16 @@ function calcDuration(startDate: string, endDate: string, startTime: string | nu
 export default function LeaveDetailPage() {
   const { id = '' } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { user } = useContext(AuthContext);
 
   const [leave, setLeave] = useState<LeaveRecord | null>(null);
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [decisionComment, setDecisionComment] = useState('');
+  const [isDeciding, setIsDeciding] = useState(false);
 
   useEffect(() => {
     async function bootstrap() {
@@ -142,8 +148,37 @@ export default function LeaveDetailPage() {
   const endParsed = parseISO(leave.endDate);
   const duration = calcDuration(leave.startDate, leave.endDate, leave.startTime, leave.endTime, handoverPerson?.department || approverPerson?.department || 'Kinh Doanh');
   const isPending = leave.status === 'pending';
+  const isApprovalMode = new URLSearchParams(location.search).get('mode') === 'approval';
+  const isApprover = Boolean(user?.id && leave.approver && user.id === leave.approver);
+  const canDecide = isPending && isApprover;
   const statusLabel = leaveStatusLabels[leave.status];
   const statusColor = leaveStatusColors[leave.status];
+
+  async function handleDecision(decision: 'approved' | 'rejected') {
+    if (!canDecide) {
+      return;
+    }
+
+    if (decision === 'rejected' && decisionComment.trim() === '') {
+      setError('Vui long nhap comment khi tu choi don.');
+      return;
+    }
+
+    setIsDeciding(true);
+    setError(null);
+
+    try {
+      const updated = await decideLeave(leave.id, {
+        decision,
+        comment: decisionComment.trim(),
+      });
+      setLeave(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Khong the duyet don nghi');
+    } finally {
+      setIsDeciding(false);
+    }
+  }
 
   return (
     <div className="px-4 pt-6 pb-6 max-w-2xl">
@@ -196,6 +231,49 @@ export default function LeaveDetailPage() {
 
       {error && (
         <div className="rounded-xl border border-primary-200 bg-primary-50 px-4 py-3 text-sm text-primary-700 mb-4">{error}</div>
+      )}
+
+      {canDecide && (
+        <div className="bg-background-50 border border-background-200/70 rounded-xl p-4 mb-4">
+          <p className="text-[11px] font-medium text-foreground-400 uppercase tracking-wide mb-2">Duyet don</p>
+          <p className="text-xs text-foreground-600 mb-3">Them comment de nguoi gui biet ly do phe duyet hoac tu choi.</p>
+
+          <textarea
+            value={decisionComment}
+            onChange={(event) => setDecisionComment(event.target.value)}
+            rows={3}
+            maxLength={500}
+            placeholder="Nhap comment khi duyet/tu choi..."
+            className="w-full px-3 py-2.5 rounded-lg border border-background-200/70 bg-background-100 text-sm text-foreground-800 outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-400/50 resize-none"
+          />
+
+          <div className="flex items-center gap-2 mt-3">
+            <button
+              type="button"
+              onClick={() => void handleDecision('approved')}
+              disabled={isDeciding}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-accent-600 text-white hover:bg-accent-700 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <i className="ri-check-line text-sm"></i>
+              {isDeciding ? 'Dang xu ly...' : 'Approve'}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleDecision('rejected')}
+              disabled={isDeciding}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-primary-500 text-white hover:bg-primary-600 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <i className="ri-close-line text-sm"></i>
+              {isDeciding ? 'Dang xu ly...' : 'Reject'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isApprovalMode && !canDecide && (
+        <div className="bg-background-50 border border-background-200/70 rounded-xl p-3 mb-4 text-xs text-foreground-600">
+          Don nay khong o trang thai cho duyet hoac ban khong phai nguoi duyet.
+        </div>
       )}
 
       <div className="bg-background-50 border border-background-200/70 rounded-xl p-4 mb-4">
@@ -266,6 +344,13 @@ export default function LeaveDetailPage() {
           <p className="text-[11px] font-medium text-foreground-400 uppercase tracking-wide mb-2">Nguoi duyet</p>
           <p className="text-sm font-semibold text-foreground-900">{approverPerson.name}</p>
           <p className="text-xs text-foreground-500">{approverPerson.position} - {approverPerson.department}</p>
+        </div>
+      )}
+
+      {leave.rejectedReason && (
+        <div className="bg-primary-50 border border-primary-200/70 rounded-xl p-4 mb-4">
+          <p className="text-[11px] font-medium text-primary-700 uppercase tracking-wide mb-1.5">Comment nguoi duyet</p>
+          <p className="text-sm text-primary-800">{leave.rejectedReason}</p>
         </div>
       )}
 
